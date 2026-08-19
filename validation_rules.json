@@ -1,0 +1,101 @@
+{
+  "schema_version": 1,
+  "regions": {
+    "TW": {
+      "schema_version": "1.0",
+      "rule_set_id": "aov-main",
+      "version": "2026.07.27.1",
+      "published_at": "2026-07-27T13:00:00Z",
+      "notes": "Initial MVP path mapping and whitelist rule set",
+      "region_code": "TW",
+      "rules": {
+        "path_mappings": [
+          {
+            "path_suffix": "/Databin/Server/Shop/SvrHeroSkinShop.xml",
+            "module": "皮肤",
+            "table_name": "英雄皮肤促销表"
+          },
+          {
+            "path_suffix": "/Databin/Server/Shop/SvrHeroSkinShop.bytes",
+            "module": "皮肤",
+            "table_name": "英雄皮肤促销表"
+          }
+        ],
+        "whitelist_paths": []
+      },
+      "rule_hash": "4b3d48b66b909cb7f0c163ed0bb1a1bb97ae19715e15f16e7b2e2b7aa9d15396"
+    },
+    "TH": {
+      "schema_version": "1.0",
+      "rule_set_id": "aov-main",
+      "version": "2026.07.27.1",
+      "published_at": "2026-07-27T13:00:00Z",
+      "notes": "Initial MVP path mapping and whitelist rule set",
+      "region_code": "TH",
+      "rules": {
+        "path_mappings": [
+          {
+            "path_suffix": "/Databin/Server/Shop/SvrHeroSkinShop.xml",
+            "module": "皮肤",
+            "table_name": "英雄皮肤促销表"
+          },
+          {
+            "path_suffix": "/Databin/Server/Shop/SvrHeroSkinShop.bytes",
+            "module": "皮肤",
+            "table_name": "英雄皮肤促销表"
+          }
+        ],
+        "whitelist_paths": []
+      },
+      "rule_hash": "cff9ba72383def860ff14749f0fe7ac2d44f03189a532c901b8e380f7f33105f"
+    },
+    "VN": {
+      "schema_version": "1.0",
+      "rule_set_id": "aov-main",
+      "version": "2026.07.27.1",
+      "published_at": "2026-07-27T13:00:00Z",
+      "notes": "Initial MVP path mapping and whitelist rule set",
+      "region_code": "VN",
+      "rules": {
+        "path_mappings": [
+          {
+            "path_suffix": "/Databin/Server/Shop/SvrHeroSkinShop.xml",
+            "module": "皮肤",
+            "table_name": "英雄皮肤促销表"
+          },
+          {
+            "path_suffix": "/Databin/Server/Shop/SvrHeroSkinShop.bytes",
+            "module": "皮肤",
+            "table_name": "英雄皮肤促销表"
+          }
+        ],
+        "whitelist_paths": []
+      },
+      "rule_hash": "1b62c2cb89cd196a78102e270f249b8c6339873435fe6daa86e0fe0e7141ec4a"
+    },
+    "ID": {
+      "schema_version": "1.0",
+      "rule_set_id": "aov-main",
+      "version": "2026.07.27.1",
+      "published_at": "2026-07-27T13:00:00Z",
+      "notes": "Initial MVP path mapping and whitelist rule set",
+      "region_code": "ID",
+      "rules": {
+        "path_mappings": [
+          {
+            "path_suffix": "/Databin/Server/Shop/SvrHeroSkinShop.xml",
+            "module": "皮肤",
+            "table_name": "英雄皮肤促销表"
+          },
+          {
+            "path_suffix": "/Databin/Server/Shop/SvrHeroSkinShop.bytes",
+            "module": "皮肤",
+            "table_name": "英雄皮肤促销表"
+          }
+        ],
+        "whitelist_paths": []
+      },
+      "rule_hash": "6f65aa475872df307667f7e48ddedf5132e488ec0bedf67f0760bcfe9e0eb78d"
+    }
+  }
+}

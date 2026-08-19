@@ -1,0 +1,108 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aov.example.invalid/schemas/aov-package-archive-v1-final.schema.json",
+  "title": "AOV immutable package archive record V1 - final",
+  "allOf": [
+    {
+      "$ref": "aov-package-archive-v1-strict.schema.json"
+    },
+    {
+      "type": "object",
+      "properties": {
+        "package_id": {
+          "type": "string",
+          "pattern": "^(?!\\.{1,2}$)[A-Za-z0-9._-]{1,128}$"
+        },
+        "created_at": {
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:\\d{2})$"
+        },
+        "package": {
+          "type": "object",
+          "properties": {
+            "name": { "$ref": "#/$defs/windows_filename" },
+            "archive_root": { "$ref": "#/$defs/final_fixed_path" },
+            "artifacts": {
+              "type": "object",
+              "properties": {
+                "archive_file": { "$ref": "#/$defs/windows_filename" },
+                "list_file": { "$ref": "#/$defs/windows_filename" },
+                "md5_file": { "$ref": "#/$defs/windows_filename" },
+                "report_file": { "$ref": "#/$defs/windows_filename" }
+              }
+            }
+          }
+        },
+        "region_filter": {
+          "type": "object",
+          "properties": {
+            "excluded_by_region": {
+              "type": "object",
+              "propertyNames": {
+                "enum": [
+                  "Taiwan", "Thailand", "Vietnam", "Vietnam_EXP", "Indonesia",
+                  "Bangladesh", "Brazil", "CHS_Standard_Global", "China_Exp", "ES",
+                  "Egypt", "India", "Japan", "Korea", "Mexico", "Russia", "Turkey",
+                  "United_Kingdom", "United_States"
+                ]
+              }
+            }
+          }
+        },
+        "validation": {
+          "type": "object",
+          "properties": {
+            "commit_record": {
+              "type": "object",
+              "properties": {
+                "scope_roots": {
+                  "type": "array",
+                  "items": { "$ref": "#/$defs/final_fixed_path" }
+                },
+                "whitelisted_paths": {
+                  "type": "array",
+                  "items": { "$ref": "#/$defs/final_fixed_path" }
+                },
+                "warnings": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "fixed_path": { "$ref": "#/$defs/final_fixed_path" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "files": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "fixed_path": { "$ref": "#/$defs/final_fixed_path" },
+              "archive_path": { "$ref": "#/$defs/final_fixed_path" }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "windows_filename": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?!(?:CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(?:\\.|$))(?!(?:[Cc][Oo][Nn]|[Pp][Rr][Nn]|[Aa][Uu][Xx]|[Nn][Uu][Ll]|[Cc][Oo][Mm][1-9]|[Ll][Pp][Tt][1-9])(?:\\.|$))(?!.*[ .]$)[^<>:\"/\\\\|?*\\u0000-\\u001F]+$"
+    },
+    "final_fixed_path": {
+      "type": "string",
+      "pattern": "^/(?![A-Za-z]:)(?!.+/$)(?!.*//)(?!\\.{1,2}(?:/|$))(?!.*/\\.{1,2}(?:/|$))[^:\\\\\\u0000]*$"
+    }
+  },
+  "x-aov-invariants": [
+    "No string value or property name may contain a Windows absolute or UNC path.",
+    "Package counts must exactly match file statuses in the source report.",
+    "FTP, archive delivery, and mail states are not part of this immutable record."
+  ]
+}

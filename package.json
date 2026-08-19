@@ -1,0 +1,15 @@
+{
+  "name": "aov-auto-packer-electron",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Electron frontend for the existing AOVAutoPacker Python core",
+  "main": "electron/main.js",
+  "scripts": {
+    "start": "electron .",
+    "check": "node --check electron/main.js && node --check electron/preload.js && node --check electron/renderer.js",
+    "test:python": "python -m unittest test_electron_bridge.py"
+  },
+  "devDependencies": {
+    "electron": "^37.2.4"
+  }
+}

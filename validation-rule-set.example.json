@@ -1,0 +1,60 @@
+{
+  "schema_version": "1.0",
+  "rule_set_id": "aov-main",
+  "version": "2026.07.27.1",
+  "published_at": "2026-07-27T13:00:00Z",
+  "notes": "Initial MVP path mapping and whitelist rule set",
+  "common": {
+    "path_mappings": [
+      {
+        "path_suffix": "/Databin/Server/Shop/SvrHeroSkinShop.xml",
+        "module": "皮肤",
+        "table_name": "英雄皮肤促销表"
+      },
+      {
+        "path_suffix": "/Databin/Server/Shop/SvrHeroSkinShop.bytes",
+        "module": "皮肤",
+        "table_name": "英雄皮肤促销表"
+      }
+    ],
+    "whitelist_paths": [],
+    "content_checks": [
+      {
+        "id": "skin-sale-window",
+        "type": "skin_sale_window",
+        "enabled": true,
+        "name": "英雄皮肤上下架与促销关联",
+        "dtxml_path": "/Xml/Garena/{region}/CommonCore/英雄皮肤促销表.dtxml",
+        "main_sheet": "svr下发皮肤上下架表",
+        "promotion_sheet": "svr下发皮肤促销特卖",
+        "trigger_paths": [
+          "/Databin/Server/Shop/SvrHeroSkinShop.xml",
+          "/Databin/Server/Shop/SvrHeroSkinShop.bytes",
+          "/Xml/Garena/{region}/CommonCore/英雄皮肤促销表.dtxml"
+        ]
+      }
+    ]
+  },
+  "regions": {
+    "TW": {
+      "path_mappings": [],
+      "whitelist_paths": [],
+      "content_checks": []
+    },
+    "TH": {
+      "path_mappings": [],
+      "whitelist_paths": [],
+      "content_checks": []
+    },
+    "VN": {
+      "path_mappings": [],
+      "whitelist_paths": [],
+      "content_checks": []
+    },
+    "ID": {
+      "path_mappings": [],
+      "whitelist_paths": [],
+      "content_checks": []
+    }
+  }
+}

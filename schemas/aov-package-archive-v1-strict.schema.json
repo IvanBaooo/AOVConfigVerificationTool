@@ -1,0 +1,347 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aov.example.invalid/schemas/aov-package-archive-v1-strict.schema.json",
+  "title": "AOV immutable package archive record V1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "record_type",
+    "source_report_schema_version",
+    "package_id",
+    "idempotency_key",
+    "created_at",
+    "release",
+    "package",
+    "status",
+    "region_filter",
+    "validation",
+    "files"
+  ],
+  "properties": {
+    "schema_version": { "const": "1.0" },
+    "record_type": { "const": "aov_package_archive" },
+    "source_report_schema_version": { "type": "string", "minLength": 1 },
+    "package_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "idempotency_key": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._-]{1,128}$"
+    },
+    "created_at": { "type": "string", "format": "date-time" },
+    "release": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "region_code",
+        "region_dir",
+        "package_version",
+        "previous_external_time",
+        "previous_external_revision_spec",
+        "previous_external_revisions",
+        "current_revision_spec",
+        "current_revisions",
+        "input_method"
+      ],
+      "properties": {
+        "region_code": { "type": "string", "enum": ["TW", "TH", "VN", "ID"] },
+        "region_dir": { "type": "string", "minLength": 1 },
+        "package_version": { "type": "string", "minLength": 1 },
+        "previous_external_time": { "type": "string" },
+        "previous_external_revision_spec": { "type": "string" },
+        "previous_external_revisions": { "$ref": "#/$defs/revisions" },
+        "current_revision_spec": { "type": "string" },
+        "current_revisions": { "$ref": "#/$defs/revisions" },
+        "input_method": { "type": "string" }
+      }
+    },
+    "package": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "md5",
+        "sha256",
+        "file_count",
+        "failed_count",
+        "skipped_count",
+        "archive_root",
+        "artifacts"
+      ],
+      "properties": {
+        "name": { "$ref": "#/$defs/filename" },
+        "md5": { "type": "string", "pattern": "^[a-f0-9]{32}$" },
+        "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "file_count": { "$ref": "#/$defs/count" },
+        "failed_count": { "$ref": "#/$defs/count" },
+        "skipped_count": { "$ref": "#/$defs/count" },
+        "archive_root": { "$ref": "#/$defs/fixed_path" },
+        "artifacts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["archive_file", "list_file", "md5_file", "report_file"],
+          "properties": {
+            "archive_file": { "$ref": "#/$defs/filename" },
+            "list_file": { "$ref": "#/$defs/filename" },
+            "md5_file": { "$ref": "#/$defs/filename" },
+            "report_file": { "$ref": "#/$defs/filename" }
+          }
+        }
+      }
+    },
+    "status": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["package_status", "validation_status"],
+      "properties": {
+        "package_status": { "type": "string", "minLength": 1 },
+        "validation_status": { "type": "string", "minLength": 1 }
+      }
+    },
+    "region_filter": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "enabled",
+        "original_count",
+        "included_count",
+        "excluded_count",
+        "excluded_unknown_count",
+        "excluded_by_region"
+      ],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "original_count": { "$ref": "#/$defs/count" },
+        "included_count": { "$ref": "#/$defs/count" },
+        "excluded_count": { "$ref": "#/$defs/count" },
+        "excluded_unknown_count": { "$ref": "#/$defs/count" },
+        "excluded_by_region": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/count" }
+        }
+      }
+    },
+    "validation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["rule_set", "summary", "commit_record", "skin_precheck"],
+      "properties": {
+        "rule_set": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["rule_set_id", "version", "rule_hash", "published_at", "region_code", "source"],
+          "properties": {
+            "rule_set_id": { "type": "string", "minLength": 1, "maxLength": 64 },
+            "version": { "type": "string", "minLength": 1, "maxLength": 64 },
+            "rule_hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+            "published_at": { "type": "string", "format": "date-time" },
+            "region_code": { "enum": ["TW", "TH", "VN", "ID"] },
+            "source": { "enum": ["remote", "local_cache", "built_in"] }
+          }
+        },
+        "summary": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["error_count", "warning_count", "confirm_count", "skipped_count"],
+          "properties": {
+            "error_count": { "$ref": "#/$defs/count" },
+            "warning_count": { "$ref": "#/$defs/count" },
+            "confirm_count": { "$ref": "#/$defs/count" },
+            "skipped_count": { "$ref": "#/$defs/count" }
+          }
+        },
+        "commit_record": { "$ref": "#/$defs/commit_record" },
+        "skin_precheck": { "$ref": "#/$defs/skin_precheck" }
+      }
+    },
+    "files": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/file" }
+    }
+  },
+  "$defs": {
+    "count": { "type": "integer", "minimum": 0 },
+    "revisions": {
+      "type": "array",
+      "items": { "type": "integer", "minimum": 1 },
+      "uniqueItems": true
+    },
+    "filename": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[^/\\\\:\\r\\n\\u0000]+$"
+    },
+    "fixed_path": {
+      "type": "string",
+      "pattern": "^/[^\\\\\\u0000]*$"
+    },
+    "commit_warning": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "type": { "type": "string" },
+        "level": { "type": "string" },
+        "input_method": { "type": "string" },
+        "module": { "type": "string" },
+        "table_name": { "type": "string" },
+        "readable_name": { "type": "string" },
+        "directory": { "type": "string" },
+        "file_name": { "type": "string" },
+        "fixed_path": { "$ref": "#/$defs/fixed_path" },
+        "message": { "type": "string" },
+        "revisions": { "$ref": "#/$defs/revisions" },
+        "actions": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "last_external_revision": { "type": "integer", "minimum": 1 },
+        "current_max_revision": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "commit_record": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "warning_count",
+        "package_path_count",
+        "expected_revision_spec",
+        "included_revision_spec",
+        "excluded_revision_spec",
+        "scope_roots",
+        "svn_log_returned_revision_count",
+        "svn_log_min_revision",
+        "svn_log_max_revision",
+        "filtered_unresolved_revision_count",
+        "whitelist_hit_count",
+        "whitelisted_paths",
+        "warnings"
+      ],
+      "properties": {
+        "status": { "type": "string", "minLength": 1 },
+        "warning_count": { "$ref": "#/$defs/count" },
+        "package_path_count": { "$ref": "#/$defs/count" },
+        "expected_revision_spec": { "type": "string" },
+        "included_revision_spec": { "type": "string" },
+        "excluded_revision_spec": { "type": "string" },
+        "scope_roots": { "type": "array", "items": { "$ref": "#/$defs/fixed_path" } },
+        "svn_log_returned_revision_count": { "$ref": "#/$defs/count" },
+        "svn_log_min_revision": { "$ref": "#/$defs/count" },
+        "svn_log_max_revision": { "$ref": "#/$defs/count" },
+        "filtered_unresolved_revision_count": { "$ref": "#/$defs/count" },
+        "whitelist_hit_count": { "$ref": "#/$defs/count" },
+        "whitelisted_paths": { "type": "array", "items": { "$ref": "#/$defs/fixed_path" } },
+        "warnings": { "type": "array", "items": { "$ref": "#/$defs/commit_warning" } }
+      }
+    },
+    "skin_fields": {
+      "type": "object",
+      "propertyNames": {
+        "enum": [
+          "ID", "英雄ID", "英雄名称", "皮肤ID", "皮肤名称", "促销特卖ID",
+          "上架时间", "下架时间", "售卖方式", "是否可点券购买", "点券价格",
+          "是否可皮肤点购买", "皮肤点价格", "是否可钻石购买", "钻石价格",
+          "是否支持混合支付", "是否在商店显示", "促销标签", "折扣比例",
+          "购买排序ID", "排序不受动态规则影响", "皮肤获取方式跳转入口", "获取途径",
+          "促销特卖1", "促销特卖2", "促销特卖3", "促销特卖4", "促销特卖5"
+        ]
+      },
+      "additionalProperties": { "type": "string" }
+    },
+    "skin_item": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "type": { "type": "string" },
+        "level": { "type": "string" },
+        "module": { "type": "string" },
+        "table": { "type": "string" },
+        "main_sheet": { "type": "string" },
+        "promo_sheet": { "type": "string" },
+        "id": { "type": "string" },
+        "hero_id": { "type": "string" },
+        "hero_name": { "type": "string" },
+        "skin_id": { "type": "string" },
+        "skin_name": { "type": "string" },
+        "match_reason": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["long_term_overlaps_window", "promotion_overlaps_window"],
+          "properties": {
+            "long_term_overlaps_window": { "type": "boolean" },
+            "promotion_overlaps_window": { "type": "boolean" }
+          }
+        },
+        "long_term_status": { "$ref": "#/$defs/skin_fields" },
+        "promotions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["promo_id", "fields"],
+            "properties": {
+              "promo_id": { "type": "string", "minLength": 1 },
+              "fields": { "$ref": "#/$defs/skin_fields" }
+            }
+          }
+        }
+      }
+    },
+    "skin_warning": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "type": { "type": "string" },
+        "level": { "type": "string" },
+        "id": { "type": "string" },
+        "promo_id": { "type": "string" },
+        "message": { "type": "string" }
+      }
+    },
+    "skin_precheck": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status", "reason", "check_window", "source", "item_count",
+        "warning_count", "items", "warnings"
+      ],
+      "properties": {
+        "status": { "type": "string", "minLength": 1 },
+        "reason": { "type": "string" },
+        "check_window": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["start_time", "end_time"],
+          "properties": {
+            "start_time": { "type": "string" },
+            "end_time": { "type": "string" }
+          }
+        },
+        "source": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["xml_exists", "main_sheet", "promo_sheet"],
+          "properties": {
+            "xml_exists": { "type": "boolean" },
+            "main_sheet": { "type": "string" },
+            "promo_sheet": { "type": "string" }
+          }
+        },
+        "item_count": { "$ref": "#/$defs/count" },
+        "warning_count": { "$ref": "#/$defs/count" },
+        "items": { "type": "array", "items": { "$ref": "#/$defs/skin_item" } },
+        "warnings": { "type": "array", "items": { "$ref": "#/$defs/skin_warning" } }
+      }
+    },
+    "file": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["action", "fixed_path", "archive_path", "status"],
+      "properties": {
+        "action": { "type": "string", "minLength": 1 },
+        "fixed_path": { "$ref": "#/$defs/fixed_path" },
+        "archive_path": { "$ref": "#/$defs/fixed_path" },
+        "status": { "type": "string", "minLength": 1 },
+        "mtime": { "type": "string" },
+        "local_exists": { "type": "boolean" },
+        "size": { "$ref": "#/$defs/count" }
+      }
+    }
+  }
+}

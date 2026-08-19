@@ -1,0 +1,45 @@
+from __future__ import annotations
+
+import json
+import unittest
+from pathlib import Path
+
+from backend_archive_contract import IDEMPOTENCY_PATTERN, build_archive_record
+from test_backend_archive_payload import sample_report
+
+
+class BackendArchiveContractSchemaTests(unittest.TestCase):
+	def test_strict_schema_closes_sensitive_nested_objects(self) -> None:
+		schema_path = Path(__file__).parent / "schemas" / "aov-package-archive-v1-strict.schema.json"
+		schema = json.loads(schema_path.read_text(encoding="utf-8"))
+
+		self.assertFalse(schema["additionalProperties"])
+		self.assertFalse(schema["$defs"]["commit_record"]["additionalProperties"])
+		self.assertFalse(schema["$defs"]["commit_warning"]["additionalProperties"])
+		self.assertFalse(schema["$defs"]["skin_precheck"]["additionalProperties"])
+		self.assertFalse(schema["$defs"]["skin_item"]["additionalProperties"])
+		self.assertFalse(schema["$defs"]["file"]["additionalProperties"])
+		self.assertNotIn("svn_password", schema["$defs"]["skin_fields"]["propertyNames"]["enum"])
+		self.assertNotIn("local_path", schema["$defs"]["skin_fields"]["propertyNames"]["enum"])
+
+	def test_schema_and_builder_share_idempotency_pattern(self) -> None:
+		schema_path = Path(__file__).parent / "schemas" / "aov-package-archive-v1-strict.schema.json"
+		schema = json.loads(schema_path.read_text(encoding="utf-8"))
+		self.assertEqual(
+			schema["properties"]["idempotency_key"]["pattern"],
+			IDEMPOTENCY_PATTERN.pattern,
+		)
+
+	def test_builder_status_matches_immutable_schema(self) -> None:
+		report = sample_report()
+		report["package"]["file_count"] = 1
+		payload = build_archive_record(report)
+		schema_path = Path(__file__).parent / "schemas" / "aov-package-archive-v1-strict.schema.json"
+		schema = json.loads(schema_path.read_text(encoding="utf-8"))
+
+		self.assertEqual(set(payload["status"]), set(schema["properties"]["status"]["properties"]))
+		self.assertEqual(set(payload), set(schema["properties"]))
+
+
+if __name__ == "__main__":
+	unittest.main()

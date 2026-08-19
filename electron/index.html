@@ -1,0 +1,310 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'">
+  <title>AOVAutoPacker</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand-block">
+        <span class="brand-mark">A</span>
+        <div>
+          <strong>AOV AutoPacker</strong>
+          <span>本地发布工作台</span>
+        </div>
+      </div>
+
+      <nav class="primary-nav" aria-label="主要栏目">
+        <button class="nav-item active" type="button" data-view="pack">
+          <span class="nav-index">01</span>
+          <span>打包任务</span>
+        </button>
+        <button class="nav-item" type="button" data-view="settings">
+          <span class="nav-index">02</span>
+          <span>本地配置</span>
+        </button>
+      </nav>
+
+      <div class="connection-stack" aria-label="连接状态">
+        <div class="connection-row">
+          <span class="status-dot pending" id="backend-dot"></span>
+          <div>
+            <span>归档后端</span>
+            <strong id="backend-status">检查中</strong>
+          </div>
+        </div>
+        <div class="connection-row">
+          <span class="status-dot idle" id="ftp-dot"></span>
+          <div>
+            <span id="ftp-label">TW FTP</span>
+            <strong id="ftp-status">未检查</strong>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <div class="workspace">
+      <header class="topbar">
+        <div>
+          <span class="eyebrow" id="page-eyebrow">LOCAL PACKAGING</span>
+          <h1 id="page-title">打包任务</h1>
+        </div>
+        <div class="topbar-actions">
+          <button class="quiet-button" id="refresh-status" type="button">刷新连接</button>
+          <div class="operator-chip">
+            <span>A</span>
+            <strong>admin</strong>
+          </div>
+        </div>
+      </header>
+
+      <main>
+        <section class="view" id="pack-view">
+          <div class="pack-layout">
+            <div class="task-column">
+              <section class="region-band" aria-labelledby="region-title">
+                <div class="section-heading compact">
+                  <div>
+                    <span class="section-number">01</span>
+                    <h2 id="region-title">打包区域</h2>
+                  </div>
+                  <span class="scope-value" id="scope-display">/Taiwan</span>
+                </div>
+                <div class="segmented regions" id="region-control" role="group" aria-label="打包区域">
+                  <button type="button" data-region="TW" class="active">TW</button>
+                  <button type="button" data-region="TH">TH</button>
+                  <button type="button" data-region="VN">VN</button>
+                  <button type="button" data-region="ID">ID</button>
+                </div>
+              </section>
+
+              <section class="revision-section" aria-labelledby="revision-title">
+                <div class="section-heading">
+                  <div>
+                    <span class="section-number">02</span>
+                    <h2 id="revision-title">本次 Revision</h2>
+                  </div>
+                  <div class="input-source-control segmented small" role="group" aria-label="SVN输入方式">
+                    <button type="button" class="active" data-source="auto">自动读取</button>
+                    <button type="button" data-source="manual">粘贴日志</button>
+                    <button type="button" data-source="files">文件列表</button>
+                  </div>
+                </div>
+                <label class="revision-input-wrap">
+                  <span>Revision</span>
+                  <input id="current-revision" autocomplete="off" placeholder="r1699919,r1699997">
+                </label>
+                <div class="content-mode-row">
+                  <span>内容版本</span>
+                  <div class="segmented small" id="content-mode-control" role="group" aria-label="打包内容版本">
+                    <button type="button" class="active" data-content-mode="local_latest">本地最新</button>
+                    <button type="button" data-content-mode="historical_revision">历史精确</button>
+                  </div>
+                </div>
+                <div class="manual-input hidden" id="manual-input-wrap">
+                  <label for="manual-input" id="manual-input-label">SVN log -v 内容</label>
+                  <textarea id="manual-input" spellcheck="false"></textarea>
+                </div>
+              </section>
+
+              <section class="baseline-strip" aria-label="上次对外基线">
+                <div>
+                  <span>上次对外</span>
+                  <strong id="baseline-revision">--</strong>
+                </div>
+                <div>
+                  <span>归档包</span>
+                  <strong id="baseline-package">未读取</strong>
+                </div>
+                <div>
+                  <span>对外时间</span>
+                  <strong id="baseline-time">--</strong>
+                </div>
+              </section>
+
+              <div class="primary-action-row">
+                <button class="quiet-button" id="run-test" type="button">执行测试</button>
+                <button class="primary-button" id="start-pack" type="button">
+                  <span>开始打包</span>
+                  <kbd>Ctrl Enter</kbd>
+                </button>
+              </div>
+            </div>
+
+            <aside class="activity-column">
+              <div class="activity-header">
+                <div>
+                  <span class="eyebrow">RUN STATUS</span>
+                  <h2>执行状态</h2>
+                </div>
+                <span class="run-badge idle" id="run-badge">待开始</span>
+              </div>
+
+              <ol class="stage-list" id="stage-list">
+                <li data-stage="svn"><span>1</span><div><strong>读取 SVN</strong><small>等待任务</small></div></li>
+                <li data-stage="packaging"><span>2</span><div><strong>生成归档包</strong><small>等待任务</small></div></li>
+                <li data-stage="review"><span>3</span><div><strong>检查 Report</strong><small>等待任务</small></div></li>
+                <li data-stage="archive"><span>4</span><div><strong>确认归档</strong><small>人工操作</small></div></li>
+              </ol>
+
+              <div class="log-panel" id="log-panel" aria-live="polite">
+                <p class="empty-log">尚无执行日志</p>
+              </div>
+            </aside>
+          </div>
+
+          <section class="result-section hidden" id="result-section" aria-labelledby="result-title">
+            <div class="result-heading">
+              <div>
+                <span class="eyebrow">PACKAGE RESULT</span>
+                <h2 id="result-title">内容概况</h2>
+              </div>
+              <span class="result-status" id="result-status">待确认</span>
+            </div>
+            <div class="analysis-summary" id="analysis-summary">
+              <div class="analysis-verdict">
+                <span>本次结论</span>
+                <strong id="analysis-update">未识别到业务内容更新</strong>
+                <p id="analysis-note">完成打包后将在这里汇总业务对象与关联风险。</p>
+              </div>
+              <dl>
+                <div><dt>内容来源</dt><dd id="analysis-source">等待检查</dd></div>
+                <div><dt>关联影响</dt><dd id="analysis-related">0个历史活动</dd></div>
+                <div><dt>结构风险</dt><dd id="analysis-risk">当前未发现</dd></div>
+                <div><dt>仅记录差异</dt><dd id="analysis-uninterpreted">0条</dd></div>
+              </dl>
+            </div>
+            <section class="content-overview" aria-labelledby="content-overview-title">
+              <div class="content-overview-heading">
+                <div>
+                  <span>BUSINESS OBJECTS</span>
+                  <h3 id="content-overview-title">核心内容</h3>
+                </div>
+                <strong id="content-overview-count">0 项</strong>
+              </div>
+              <div class="content-update-list" id="content-update-list" role="tablist" aria-label="核心内容分类"></div>
+              <div class="content-preview-list" id="content-preview-list">
+                <p class="content-empty">尚未生成业务内容概况。</p>
+              </div>
+            </section>
+            <div class="package-strip">
+              <div class="package-identity">
+                <span>归档包</span>
+                <strong id="result-package">--</strong>
+                <code id="result-md5">--</code>
+              </div>
+              <dl class="result-metrics">
+                <div><dt>文件</dt><dd id="result-files">0</dd></div>
+                <div><dt>告警</dt><dd id="result-warnings">0</dd></div>
+                <div><dt>错误</dt><dd id="result-errors">0</dd></div>
+              </dl>
+            </div>
+            <div class="result-actions">
+              <button class="quiet-button" id="open-output" type="button">打开目录</button>
+              <button class="quiet-button" id="open-report" type="button">打开 Report</button>
+              <button class="primary-button compact-button" id="confirm-archive" type="button">确认归档</button>
+            </div>
+            <div class="upload-progress hidden" id="upload-progress">
+              <div><span id="upload-label">FTP 上传</span><strong id="upload-percent">0%</strong></div>
+              <progress id="upload-bar" max="100" value="0"></progress>
+            </div>
+          </section>
+
+          <details class="content-validation">
+            <summary>
+              <span>内容详情</span>
+              <strong id="activity-detail-count">等待打包</strong>
+            </summary>
+            <div class="module-detail-tabs hidden" id="module-detail-tabs" role="tablist" aria-label="按 Module 查看内容详情"></div>
+            <div class="activity-detail-list" id="activity-detail-list">
+              <p>打包完成后可在这里查看活动、皮肤、道具、奖励与限量内容。</p>
+            </div>
+          </details>
+        </section>
+
+        <section class="view hidden" id="settings-view">
+          <form id="settings-form">
+            <section class="settings-section">
+              <div class="section-heading">
+                <div><span class="section-number">01</span><h2>本地目录</h2></div>
+              </div>
+              <div class="form-grid">
+                <label class="wide"><span>ServerBytes 根目录</span><div class="path-input"><input id="local-root"><button type="button" data-browse="local-root">选择</button></div></label>
+                <label class="wide"><span>TdrTable 根目录</span><div class="path-input"><input id="tdr-root"><button type="button" data-browse="tdr-root">选择</button></div></label>
+              </div>
+            </section>
+
+            <section class="settings-section">
+              <div class="section-heading">
+                <div><span class="section-number">02</span><h2>SVN</h2></div>
+              </div>
+              <div class="form-grid">
+                <label class="wide"><span>SVN URL</span><input id="svn-target"></label>
+                <label><span>SVN 程序</span><input id="svn-exe"></label>
+                <label><span>用户名</span><input id="svn-username"></label>
+                <label><span>本次密码</span><input type="password" id="svn-password" autocomplete="off"></label>
+                <label class="toggle-row"><input type="checkbox" id="use-auth-cache"><span>使用 SVN 登录缓存</span></label>
+              </div>
+            </section>
+
+            <section class="settings-section">
+              <div class="section-heading">
+                <div><span class="section-number">03</span><h2>归档后端</h2></div>
+              </div>
+              <div class="form-grid">
+                <label class="wide"><span>Backend URL</span><input id="backend-url"></label>
+                <label><span>访问 Token</span><input type="password" id="backend-token" autocomplete="off"></label>
+                <div class="inline-action"><button class="quiet-button" id="test-backend" type="button">测试连接</button></div>
+              </div>
+            </section>
+
+            <section class="settings-section">
+              <div class="section-heading">
+                <div><span class="section-number">04</span><h2>区域 FTP</h2></div>
+                <div class="segmented small" id="ftp-region-control" role="group" aria-label="FTP区域">
+                  <button type="button" data-ftp-region="TW" class="active">TW</button>
+                  <button type="button" data-ftp-region="TH">TH</button>
+                  <button type="button" data-ftp-region="VN">VN</button>
+                  <button type="button" data-ftp-region="ID">ID</button>
+                </div>
+              </div>
+              <div class="form-grid">
+                <label><span>主机</span><input id="ftp-host"></label>
+                <label><span>端口</span><input id="ftp-port" inputmode="numeric"></label>
+                <label><span>用户名</span><input id="ftp-username"></label>
+                <label><span>密码</span><input type="password" id="ftp-password" autocomplete="new-password" placeholder="保持原密码"></label>
+                <label class="wide"><span>远端目录</span><input id="ftp-directory"></label>
+                <label class="toggle-row"><input type="checkbox" id="ftp-passive"><span>被动模式</span></label>
+                <div class="inline-action"><button class="quiet-button" id="test-ftp" type="button">测试当前区域</button></div>
+              </div>
+            </section>
+
+            <section class="settings-section advanced-section">
+              <div class="section-heading"><div><span class="section-number">05</span><h2>打包策略</h2></div></div>
+              <div class="form-grid">
+                <label><span>打包版本</span><input id="package-version"></label>
+                <label><span>区域范围</span><input id="scope-roots"></label>
+                <label class="toggle-row"><input type="checkbox" id="enable-commit-check"><span>启用提交记录检查</span></label>
+                <label class="toggle-row"><input type="checkbox" id="enable-region-filter"><span>启用区域文件过滤</span></label>
+                <label class="wide"><span>提交白名单</span><textarea id="commit-whitelist" rows="5"></textarea></label>
+              </div>
+            </section>
+
+            <div class="settings-actions">
+              <span id="settings-message"></span>
+              <button class="primary-button compact-button" type="submit">保存配置</button>
+            </div>
+          </form>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <div class="toast-region" id="toast-region" aria-live="polite"></div>
+  <script src="renderer.js"></script>
+</body>
+</html>

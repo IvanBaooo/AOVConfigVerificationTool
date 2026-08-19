@@ -1,0 +1,507 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AOV 配置归档</title>
+  <link rel="stylesheet" href="/admin/styles.css">
+  <link rel="stylesheet" href="/admin/rules.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <div class="brand-mark" aria-hidden="true">A</div>
+        <div>
+          <strong>AOV Data Agent</strong>
+          <span>配置发布归档</span>
+        </div>
+      </div>
+
+      <nav class="primary-nav" aria-label="主要栏目">
+        <button class="nav-item" id="nav-dashboard" type="button">
+          <span class="nav-icon" aria-hidden="true">D</span>
+          <span>Dashboard</span>
+        </button>
+        <button class="nav-item active" id="nav-archives" type="button" aria-current="page">
+          <span class="nav-icon" aria-hidden="true">A</span>
+          <span>归档记录</span>
+        </button>
+        <button class="nav-item" id="nav-rules" type="button">
+          <span class="nav-icon" aria-hidden="true">R</span>
+          <span>规则管理</span>
+        </button>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="service-state" id="service-state">
+          <span class="state-dot" aria-hidden="true"></span>
+          <span id="service-label">检查服务</span>
+        </div>
+        <button class="sidebar-action hidden" id="connection-button" type="button">连接设置</button>
+      </div>
+    </aside>
+
+    <div class="page-shell">
+      <header class="page-header">
+        <div>
+          <p id="page-kicker">数据发布管理</p>
+          <h1 id="page-title">归档记录</h1>
+        </div>
+        <div class="page-header-actions">
+          <button class="button button-primary" id="refresh-button" type="button">刷新数据</button>
+          <div class="admin-account" aria-label="当前管理员账号">
+            <span class="admin-avatar" aria-hidden="true">A</span>
+            <span class="admin-identity">
+              <strong>admin</strong>
+              <span>管理员 · 开发态</span>
+            </span>
+          </div>
+        </div>
+      </header>
+
+      <main class="hidden" id="dashboard-view">
+        <section class="dashboard-overview" aria-labelledby="dashboard-heading">
+          <div class="dashboard-overview-heading">
+            <div>
+              <p class="section-eyebrow">RELEASE OVERVIEW</p>
+              <h2 id="dashboard-heading">区域发布态势</h2>
+            </div>
+            <span id="dashboard-updated-at">等待读取</span>
+          </div>
+          <div class="dashboard-metrics" aria-label="发布指标">
+            <div><span>正常归档</span><strong id="dashboard-active-count">--</strong></div>
+            <div><span>需关注</span><strong id="dashboard-attention-count">--</strong></div>
+            <div><span>已删除</span><strong id="dashboard-deleted-count">--</strong></div>
+            <div><span>已建立基线</span><strong id="dashboard-baseline-count">-- / 4</strong></div>
+          </div>
+        </section>
+
+        <div class="notice hidden dashboard-notice" id="dashboard-notice" role="status"></div>
+
+        <section class="dashboard-workspace" aria-label="Dashboard工作区">
+          <section class="dashboard-section" aria-labelledby="dashboard-regions-title">
+            <div class="section-heading dashboard-section-heading">
+              <div>
+                <h2 id="dashboard-regions-title">区域基线</h2>
+                <p>本地打包工具读取的上次对外版本</p>
+              </div>
+            </div>
+            <div class="table-frame dashboard-table-frame">
+              <table class="dashboard-region-table">
+                <thead>
+                  <tr><th>区域</th><th>当前对外基线</th><th>Revision</th><th>基线时间</th><th>正常归档</th><th>需关注</th><th>状态</th></tr>
+                </thead>
+                <tbody id="dashboard-region-rows"></tbody>
+              </table>
+              <div class="table-state" id="dashboard-region-state">正在读取区域基线</div>
+            </div>
+          </section>
+
+          <section class="dashboard-section" aria-labelledby="dashboard-recent-title">
+            <div class="section-heading dashboard-section-heading">
+              <div>
+                <h2 id="dashboard-recent-title">最近归档</h2>
+                <p>最近确认归档的正常记录</p>
+              </div>
+            </div>
+            <div class="table-frame dashboard-table-frame">
+              <table class="dashboard-recent-table">
+                <thead>
+                  <tr><th>归档时间</th><th>包名</th><th>区域</th><th>文件</th><th>告警</th><th>校验</th><th>记录</th></tr>
+                </thead>
+                <tbody id="dashboard-recent-rows"></tbody>
+              </table>
+              <div class="table-state" id="dashboard-recent-state">正在读取最近归档</div>
+            </div>
+          </section>
+        </section>
+      </main>
+
+      <main id="archive-view">
+        <section class="region-bar" aria-labelledby="region-title">
+          <div>
+            <h2 id="region-title">发布区域</h2>
+            <p>切换区域查看对应的对外归档记录</p>
+          </div>
+          <div class="region-switch" id="region-switch" role="group" aria-label="发布区域">
+            <button class="region-button active" type="button" data-region="" aria-pressed="true">全部</button>
+            <button class="region-button" type="button" data-region="TW" aria-pressed="false">TW</button>
+            <button class="region-button" type="button" data-region="TH" aria-pressed="false">TH</button>
+            <button class="region-button" type="button" data-region="VN" aria-pressed="false">VN</button>
+            <button class="region-button" type="button" data-region="ID" aria-pressed="false">ID</button>
+          </div>
+        </section>
+
+        <section class="summary-band" aria-label="归档概览">
+          <div class="summary-item">
+            <span>当前结果</span>
+            <strong id="summary-total">--</strong>
+          </div>
+          <div class="summary-item">
+            <span>本页告警</span>
+            <strong id="summary-warnings">--</strong>
+          </div>
+          <div class="summary-item">
+            <span>本页异常</span>
+            <strong id="summary-errors">--</strong>
+          </div>
+          <div class="summary-item">
+            <span>当前区域</span>
+            <strong id="summary-region">全部</strong>
+          </div>
+        </section>
+
+        <section class="workspace">
+          <div class="section-heading">
+            <div>
+              <h2>归档列表</h2>
+              <p id="result-caption">等待加载</p>
+            </div>
+            <button class="button button-quiet" id="reset-button" type="button">清除筛选</button>
+          </div>
+
+          <div class="notice hidden" id="page-notice" role="status"></div>
+
+          <form class="archive-table-form" id="filter-form">
+            <div class="table-frame" id="table-frame">
+              <table>
+                <thead>
+                  <tr>
+                    <th><span class="column-title">归档时间</span></th>
+                    <th><span class="column-title">包名</span></th>
+                    <th><span class="column-title">区域</span></th>
+                    <th class="filter-column">
+                      <label class="column-filter">
+                        <span class="column-title">版本</span>
+                        <select id="filter-version" name="package_version" aria-label="筛选打包版本">
+                          <option value="">全部</option>
+                        </select>
+                      </label>
+                    </th>
+                    <th><span class="column-title">文件</span></th>
+                    <th><span class="column-title">告警</span></th>
+                    <th class="filter-column">
+                      <label class="column-filter">
+                        <span class="column-title">校验</span>
+                        <select id="filter-validation-status" name="validation_status" aria-label="筛选校验状态">
+                          <option value="">全部</option>
+                          <option value="passed">通过</option>
+                          <option value="warning">有告警</option>
+                          <option value="failed">失败</option>
+                          <option value="skipped">未执行</option>
+                        </select>
+                      </label>
+                    </th>
+                    <th class="filter-column">
+                      <label class="column-filter">
+                        <span class="column-title">打包</span>
+                        <select id="filter-package-status" name="package_status" aria-label="筛选打包状态">
+                          <option value="">全部</option>
+                          <option value="success">成功</option>
+                          <option value="partial">部分成功</option>
+                          <option value="failed">失败</option>
+                        </select>
+                      </label>
+                    </th>
+                    <th class="filter-column">
+                      <label class="column-filter">
+                        <span class="column-title">记录</span>
+                        <select id="filter-record-state" name="record_state" aria-label="筛选记录状态">
+                          <option value="active">正常</option>
+                          <option value="deleted">已删除</option>
+                          <option value="all">全部</option>
+                        </select>
+                      </label>
+                    </th>
+                    <th><span class="column-title">操作</span></th>
+                  </tr>
+                </thead>
+                <tbody id="archive-rows"></tbody>
+              </table>
+              <div class="table-state" id="table-state">正在加载归档记录</div>
+            </div>
+
+            <nav class="pagination" aria-label="归档分页">
+              <span id="page-label">第 1 页</span>
+              <div>
+                <button class="button button-secondary" id="previous-page" type="button">上一页</button>
+                <button class="button button-secondary" id="next-page" type="button">下一页</button>
+              </div>
+            </nav>
+          </form>
+
+          <details class="admin-audit-section" id="admin-audit-panel">
+            <summary class="admin-audit-summary">
+              <div>
+                <span>ADMIN AUDIT</span>
+                <h3>管理员操作记录</h3>
+              </div>
+              <strong id="audit-summary-count">展开查看</strong>
+            </summary>
+            <div class="admin-audit-body">
+              <div class="notice hidden" id="audit-notice" role="status"></div>
+              <div class="table-frame audit-table-frame">
+                <table class="audit-table">
+                  <thead>
+                    <tr>
+                      <th><span class="column-title">操作时间</span></th>
+                      <th><span class="column-title">账号</span></th>
+                      <th class="filter-column">
+                        <label class="column-filter">
+                          <span class="column-title">操作</span>
+                          <select id="audit-filter-action" aria-label="筛选操作类型">
+                            <option value="">全部</option>
+                            <option value="delete">删除</option>
+                            <option value="restore">恢复</option>
+                            <option value="baseline_set">设置基线</option>
+                          </select>
+                        </label>
+                      </th>
+                      <th class="filter-column">
+                        <label class="column-filter">
+                          <span class="column-title">区域</span>
+                          <select id="audit-filter-region" aria-label="筛选审计区域">
+                            <option value="">全部</option>
+                            <option value="TW">TW</option>
+                            <option value="TH">TH</option>
+                            <option value="VN">VN</option>
+                            <option value="ID">ID</option>
+                          </select>
+                        </label>
+                      </th>
+                      <th><span class="column-title">归档包</span></th>
+                      <th><span class="column-title">原因</span></th>
+                    </tr>
+                  </thead>
+                  <tbody id="audit-rows"></tbody>
+                </table>
+                <div class="table-state" id="audit-table-state">展开后读取操作记录</div>
+              </div>
+              <nav class="pagination audit-pagination" aria-label="操作记录分页">
+                <span id="audit-page-label">第 1 页</span>
+                <div>
+                  <button class="button button-secondary" id="audit-previous-page" type="button">上一页</button>
+                  <button class="button button-secondary" id="audit-next-page" type="button">下一页</button>
+                </div>
+              </nav>
+            </div>
+          </details>
+        </section>
+      </main>
+
+      <main class="hidden" id="rules-view">
+        <section class="rules-header-band" aria-labelledby="rules-heading">
+          <div>
+            <p class="section-eyebrow">VALIDATION RULE SETS</p>
+            <h2 id="rules-heading">规则版本管理</h2>
+            <p id="rules-caption">正在读取已发布版本</p>
+          </div>
+          <div class="rules-header-actions">
+            <button class="button button-secondary" id="rules-refresh" type="button">刷新版本</button>
+            <button class="button button-primary" id="rules-new-draft" type="button" disabled>新建草稿</button>
+          </div>
+        </section>
+
+        <div class="rules-notice notice hidden" id="rules-notice" role="status"></div>
+
+        <section class="rules-workspace" aria-label="规则维护工作区">
+          <aside class="rules-history" aria-labelledby="rules-history-title">
+            <div class="rules-panel-heading">
+              <h2 id="rules-history-title">版本历史</h2>
+              <span id="rules-history-count">0</span>
+            </div>
+            <div class="rules-history-list" id="rules-history-list"></div>
+            <div class="rules-empty" id="rules-history-empty">尚未发布规则版本</div>
+          </aside>
+
+          <section class="rules-editor" aria-labelledby="rules-editor-title">
+            <div class="rules-editor-heading">
+              <div>
+                <p id="rules-editor-mode">只读版本</p>
+                <h2 id="rules-editor-title">请选择规则版本</h2>
+              </div>
+              <span class="badge badge-neutral" id="rules-editor-state">未加载</span>
+            </div>
+
+            <div class="rule-meta-grid">
+              <label>
+                <span>规则集 ID</span>
+                <input id="rule-set-id" type="text" value="aov-main" maxlength="64" disabled>
+              </label>
+              <label>
+                <span>新版本</span>
+                <input id="rule-version" type="text" disabled>
+              </label>
+              <label class="rule-notes-field">
+                <span>发布说明</span>
+                <input id="rule-notes" type="text" maxlength="1000" disabled>
+              </label>
+            </div>
+
+            <div class="rule-scope-bar">
+              <div>
+                <strong>规则范围</strong>
+                <span>区域规则会覆盖同路径的公共映射</span>
+              </div>
+              <div class="rule-scope-switch" id="rule-scope-switch" role="group" aria-label="规则范围">
+                <button class="rule-scope-button active" type="button" data-scope="common" aria-pressed="true">公共</button>
+                <button class="rule-scope-button" type="button" data-scope="TW" aria-pressed="false">TW</button>
+                <button class="rule-scope-button" type="button" data-scope="TH" aria-pressed="false">TH</button>
+                <button class="rule-scope-button" type="button" data-scope="VN" aria-pressed="false">VN</button>
+                <button class="rule-scope-button" type="button" data-scope="ID" aria-pressed="false">ID</button>
+              </div>
+            </div>
+
+            <section class="rule-edit-section" aria-labelledby="mapping-heading">
+              <div class="rule-section-heading">
+                <div>
+                  <h3 id="mapping-heading">路径映射</h3>
+                  <p>将 ServerBytes 路径转换为 Report 中的可读表名</p>
+                </div>
+                <button class="button button-secondary" id="add-mapping" type="button" disabled>+ 添加映射</button>
+              </div>
+              <div class="rule-table-wrap">
+                <table class="rule-table">
+                  <thead>
+                    <tr><th>路径后缀</th><th>模块</th><th>可读表名</th><th><span class="sr-only">操作</span></th></tr>
+                  </thead>
+                  <tbody id="mapping-rows"></tbody>
+                </table>
+                <div class="rule-empty" id="mapping-empty">当前范围没有路径映射</div>
+              </div>
+            </section>
+
+            <section class="rule-edit-section" aria-labelledby="whitelist-heading">
+              <div class="rule-section-heading">
+                <div>
+                  <h3 id="whitelist-heading">提交告警白名单</h3>
+                  <p>支持文件名、完整路径、目录和通配符</p>
+                </div>
+                <button class="button button-secondary" id="add-whitelist" type="button" disabled>+ 添加规则</button>
+              </div>
+              <div class="whitelist-editor" id="whitelist-rows"></div>
+              <div class="rule-empty" id="whitelist-empty">当前范围没有白名单规则</div>
+            </section>
+
+            <details class="rule-edit-section content-check-section" id="content-check-panel">
+              <summary class="content-check-summary">
+                <div>
+                  <h3 id="content-check-heading">表内容校验</h3>
+                  <p>读取 DTXML，检查皮肤长期上下架状态、短期促销时间与促销 ID 关联</p>
+                </div>
+                <div class="content-check-summary-meta">
+                  <span class="badge badge-neutral">后续</span>
+                  <span id="content-check-count">0 项</span>
+                </div>
+              </summary>
+              <div class="content-check-panel-body" aria-labelledby="content-check-heading">
+                <div class="content-check-actions">
+                  <span>当前范围配置</span>
+                  <button class="button button-secondary" id="add-content-check" type="button" disabled>+ 添加校验</button>
+                </div>
+                <div class="content-check-editor" id="content-check-rows"></div>
+                <div class="rule-empty" id="content-check-empty">当前范围没有表内容校验</div>
+              </div>
+            </details>
+            <section class="rule-change-summary" aria-labelledby="change-summary-heading">
+              <div>
+                <p class="section-eyebrow">DRAFT DIFF</p>
+                <h3 id="change-summary-heading">变更摘要</h3>
+              </div>
+              <dl>
+                <div><dt>新增</dt><dd id="change-added">0</dd></div>
+                <div><dt>修改</dt><dd id="change-updated">0</dd></div>
+                <div><dt>删除</dt><dd id="change-removed">0</dd></div>
+                <div><dt>问题</dt><dd id="change-errors">0</dd></div>
+              </dl>
+              <button class="button button-primary" id="publish-rules" type="button" disabled>发布新版本</button>
+            </section>
+          </section>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <div class="drawer-backdrop hidden" id="drawer-backdrop"></div>
+  <aside class="detail-drawer" id="detail-drawer" aria-hidden="true" aria-labelledby="detail-title">
+    <header class="drawer-header">
+      <div>
+        <p>归档详情</p>
+        <h2 id="detail-title">未选择记录</h2>
+      </div>
+      <button class="icon-button" id="close-detail" type="button" aria-label="关闭详情" title="关闭详情">×</button>
+    </header>
+    <div class="detail-loading hidden" id="detail-loading">正在读取详情</div>
+    <div class="detail-content" id="detail-content"></div>
+  </aside>
+
+  <dialog id="publish-rule-dialog">
+    <form method="dialog" class="dialog-form" id="publish-rule-form">
+      <div class="dialog-heading">
+        <div>
+          <p>不可变版本</p>
+          <h2>确认发布规则</h2>
+        </div>
+        <button class="icon-button" value="cancel" aria-label="关闭" title="关闭">×</button>
+      </div>
+      <div class="publish-rule-summary" id="publish-rule-summary"></div>
+      <p class="dialog-warning">发布后该版本不可修改；后续调整需要生成新版本。</p>
+      <div class="dialog-actions">
+        <button class="button button-quiet" value="cancel">取消</button>
+        <button class="button button-primary" id="confirm-publish-rules" value="default">确认发布</button>
+      </div>
+    </form>
+  </dialog>
+  <dialog id="archive-action-dialog">
+    <form class="dialog-form" id="archive-action-form">
+      <div class="dialog-heading">
+        <div>
+          <p>管理员操作</p>
+          <h2 id="archive-action-title">管理归档记录</h2>
+        </div>
+        <button class="icon-button" id="archive-action-close" type="button" aria-label="关闭" title="关闭">×</button>
+      </div>
+      <p class="archive-action-package" id="archive-action-package"></p>
+      <div class="archive-baseline-fields hidden" id="archive-baseline-fields">
+        <p>当前记录是该区域的对外基线。删除前需要明确新的对外基线。</p>
+        <label>
+          <span>回退后的对外版本</span>
+          <select id="archive-baseline-replacement" aria-label="回退后的对外版本"></select>
+        </label>
+      </div>
+      <label>
+        <span>操作原因</span>
+        <textarea id="archive-action-reason" maxlength="500" rows="4" required placeholder="请填写删除或恢复原因"></textarea>
+      </label>
+      <p class="dialog-warning" id="archive-action-warning"></p>
+      <div class="dialog-actions">
+        <button class="button button-quiet" id="archive-action-cancel" type="button">取消</button>
+        <button class="button button-primary" id="archive-action-confirm" type="submit">确认</button>
+      </div>
+    </form>
+  </dialog>
+  <dialog id="connection-dialog">
+    <form method="dialog" class="dialog-form" id="connection-form">
+      <div class="dialog-heading">
+        <div>
+          <p>后端连接</p>
+          <h2>访问凭据</h2>
+        </div>
+        <button class="icon-button" value="cancel" aria-label="关闭" title="关闭">×</button>
+      </div>
+      <label>
+        <span>Bearer Token</span>
+        <input id="token-input" type="password" autocomplete="off" required>
+      </label>
+      <div class="dialog-actions">
+        <button class="button button-quiet" value="cancel">取消</button>
+        <button class="button button-primary" id="save-token" value="default">连接</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="/admin/app.js" defer></script>
+  <script src="/admin/rules.js" defer></script>
+</body>
+</html>

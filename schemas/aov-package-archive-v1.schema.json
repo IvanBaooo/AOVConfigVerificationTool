@@ -1,0 +1,214 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aov.example.invalid/schemas/aov-package-archive-v1.schema.json",
+  "title": "AOV package archive payload",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "record_type",
+    "source_report_schema_version",
+    "package_id",
+    "idempotency_key",
+    "created_at",
+    "release",
+    "package",
+    "status",
+    "region_filter",
+    "validation",
+    "files"
+  ],
+  "properties": {
+    "schema_version": { "const": "1.0" },
+    "record_type": { "const": "aov_package_archive" },
+    "source_report_schema_version": { "type": "string", "minLength": 1 },
+    "package_id": { "type": "string", "minLength": 1 },
+    "idempotency_key": { "type": "string", "minLength": 1 },
+    "created_at": { "type": "string", "format": "date-time" },
+    "release": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "region_code",
+        "region_dir",
+        "package_version",
+        "previous_external_time",
+        "previous_external_revision_spec",
+        "previous_external_revisions",
+        "current_revision_spec",
+        "current_revisions",
+        "input_method"
+      ],
+      "properties": {
+        "region_code": { "type": "string", "enum": ["TW", "TH", "VN", "ID"] },
+        "region_dir": { "type": "string" },
+        "package_version": { "type": "string", "minLength": 1 },
+        "previous_external_time": { "type": "string" },
+        "previous_external_revision_spec": { "type": "string" },
+        "previous_external_revisions": {
+          "type": "array",
+          "items": { "type": "integer", "minimum": 1 },
+          "uniqueItems": true
+        },
+        "current_revision_spec": { "type": "string" },
+        "current_revisions": {
+          "type": "array",
+          "items": { "type": "integer", "minimum": 1 },
+          "uniqueItems": true
+        },
+        "input_method": { "type": "string" }
+      }
+    },
+    "package": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "md5",
+        "sha256",
+        "file_count",
+        "failed_count",
+        "skipped_count",
+        "archive_root",
+        "artifacts"
+      ],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "md5": { "type": "string", "pattern": "^[a-f0-9]{32}$" },
+        "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "file_count": { "$ref": "#/$defs/non_negative_integer" },
+        "failed_count": { "$ref": "#/$defs/non_negative_integer" },
+        "skipped_count": { "$ref": "#/$defs/non_negative_integer" },
+        "archive_root": { "type": "string" },
+        "artifacts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["archive_file", "list_file", "md5_file", "report_file"],
+          "properties": {
+            "archive_file": { "type": "string" },
+            "list_file": { "type": "string" },
+            "md5_file": { "type": "string" },
+            "report_file": { "type": "string" }
+          }
+        }
+      }
+    },
+    "status": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "package_status",
+        "validation_status",
+        "ftp_status",
+        "archive_status",
+        "mail_status"
+      ],
+      "properties": {
+        "package_status": { "type": "string" },
+        "validation_status": { "type": "string" },
+        "ftp_status": { "type": "string" },
+        "archive_status": { "type": "string" },
+        "mail_status": { "type": "string" }
+      }
+    },
+    "region_filter": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "enabled",
+        "original_count",
+        "included_count",
+        "excluded_count",
+        "excluded_unknown_count",
+        "excluded_by_region"
+      ],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "original_count": { "$ref": "#/$defs/non_negative_integer" },
+        "included_count": { "$ref": "#/$defs/non_negative_integer" },
+        "excluded_count": { "$ref": "#/$defs/non_negative_integer" },
+        "excluded_unknown_count": { "$ref": "#/$defs/non_negative_integer" },
+        "excluded_by_region": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/non_negative_integer" }
+        }
+      }
+    },
+    "validation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["rule_set", "summary", "commit_record", "skin_precheck"],
+      "properties": {
+        "rule_set": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["rule_set_id", "version", "rule_hash", "published_at", "region_code", "source"],
+          "properties": {
+            "rule_set_id": { "type": "string", "minLength": 1, "maxLength": 64 },
+            "version": { "type": "string", "minLength": 1, "maxLength": 64 },
+            "rule_hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+            "published_at": { "type": "string", "format": "date-time" },
+            "region_code": { "enum": ["TW", "TH", "VN", "ID"] },
+            "source": { "enum": ["remote", "local_cache", "built_in"] }
+          }
+        },
+        "summary": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["error_count", "warning_count", "confirm_count", "skipped_count"],
+          "properties": {
+            "error_count": { "$ref": "#/$defs/non_negative_integer" },
+            "warning_count": { "$ref": "#/$defs/non_negative_integer" },
+            "confirm_count": { "$ref": "#/$defs/non_negative_integer" },
+            "skipped_count": { "$ref": "#/$defs/non_negative_integer" }
+          }
+        },
+        "commit_record": {
+          "type": "object",
+          "additionalProperties": true,
+          "required": ["status", "warning_count", "warnings"],
+          "properties": {
+            "status": { "type": "string" },
+            "warning_count": { "$ref": "#/$defs/non_negative_integer" },
+            "warnings": {
+              "type": "array",
+              "items": { "type": "object", "additionalProperties": true }
+            }
+          }
+        },
+        "skin_precheck": {
+          "type": "object",
+          "additionalProperties": true,
+          "required": ["status", "items", "warnings"],
+          "properties": {
+            "status": { "type": "string" },
+            "items": { "type": "array" },
+            "warnings": { "type": "array" }
+          }
+        }
+      }
+    },
+    "files": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "action": { "type": "string" },
+          "fixed_path": { "type": "string" },
+          "archive_path": { "type": "string" },
+          "status": { "type": "string" },
+          "mtime": { "type": "string" },
+          "local_exists": { "type": "boolean" },
+          "size": { "$ref": "#/$defs/non_negative_integer" }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "non_negative_integer": {
+      "type": "integer",
+      "minimum": 0
+    }
+  }
+}

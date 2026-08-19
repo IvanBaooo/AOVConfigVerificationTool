@@ -1,0 +1,39 @@
+# Machine-local credentials and settings
+settings.json
+.env
+.env.*
+!.env.example
+settings.local.json
+
+# Generated package and service data
+output/
+test_outputs/
+*.sqlite3
+*.sqlite
+*.db
+*.log
+.web-*
+.svn_snapshot_cache/
+backend.stdout.log
+backend.stderr.log
+
+# Python runtime files
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Electron runtime files
+node_modules/
+electron-smoke.png
+
+# Build and editor files
+build/
+dist/
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
