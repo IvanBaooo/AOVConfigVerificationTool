@@ -5,11 +5,19 @@
   "description": "Electron frontend for the existing AOVAutoPacker Python core",
   "main": "electron/main.js",
   "scripts": {
-    "start": "electron .",
-    "check": "node --check electron/main.js && node --check electron/preload.js && node --check electron/renderer.js",
+    "build:renderer": "vite build",
+    "start": "pnpm build:renderer && electron .",
+    "check": "node --check electron/main.js && node --check electron/preload.js && vite build",
     "test:python": "python -m unittest test_electron_bridge.py"
   },
   "devDependencies": {
-    "electron": "^37.2.4"
+    "@vitejs/plugin-react": "^4.7.0",
+    "electron": "^37.2.4",
+    "vite": "^7.3.6"
+  },
+  "dependencies": {
+    "lucide-react": "^0.468.0",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
   }
 }

@@ -18,7 +18,8 @@ FTP upload and backend synchronization never run automatically after packaging.
 
 ## Components
 
-- `electron/`: current local desktop frontend.
+- `src/renderer/`: React desktop frontend with shadcn-inspired primitives and design tokens.
+- `electron/`: Electron main process and secure preload bridge. The renderer is built into `electron/dist/`.
 - `electron_bridge.py`: Electron-to-Python command bridge.
 - `packer_*.py`: packaging and report pipeline.
 - `svn_*.py`: SVN log, revision, working-copy, and DTXML diff handling.
@@ -39,6 +40,16 @@ Install Electron dependencies:
 ```powershell
 pnpm install
 ```
+
+Build the React renderer and start the desktop app:
+
+```powershell
+pnpm run build:renderer
+pnpm start
+```
+
+The renderer keeps the existing `window.aov` bridge contract, so Python packaging,
+SVN, FTP, and archive behavior remain in the existing backend/core modules.
 
 Install Python dependencies when backend development is needed:
 

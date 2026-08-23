@@ -213,7 +213,8 @@ class ElectronBridgeSettingsTests(unittest.TestCase):
 		self.assertFalse(result["can_archive"])
 		self.assertEqual(1, result["module_overview"]["uninterpreted_change_count"])
 		self.assertEqual(1, result["module_overview"]["deferred_change_count"])
-		self.assertTrue(str(pack.call_args.kwargs["output_parent"]).endswith("output\\tests"))
+		output_parent = Path(pack.call_args.kwargs["output_parent"])
+		self.assertEqual(("output", "tests"), output_parent.parts[-2:])
 
 
 if __name__ == "__main__":
