@@ -1,17 +1,23 @@
 # Local settings
 
-The current settings-enabled entry is:
+Start the desktop app with the launcher (it also starts the local archive
+backend when needed):
 
 ```powershell
-python AOVAutoPackerCurrent.py
+.\start_packer.bat
 ```
 
-It can also be started by double-clicking `start_current_packer.bat`.
+or run the steps manually:
 
-Local settings are stored beside the source entry or packaged executable:
+```powershell
+python -m archive_backend.server --host 127.0.0.1 --port 8780 --no-auth
+pnpm start
+```
+
+Local settings are stored in the project root:
 
 ```text
-AOVAutoPacker\settings.json
+settings.json
 ```
 
 Saved values include machine paths, SVN target and executable, SVN username,
@@ -43,9 +49,3 @@ saved.
 
 For tests or an alternate machine-specific location, set
 `AOV_AUTOPACKER_SETTINGS` to override the root settings file path.
-
-Build the configured executable with:
-
-```powershell
-pyinstaller AOVAutoPackerCurrent.spec
-```

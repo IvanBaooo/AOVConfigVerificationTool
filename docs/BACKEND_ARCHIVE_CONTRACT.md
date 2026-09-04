@@ -28,9 +28,9 @@ schemas/aov-package-archive-v1.schema.json
 The local builder is:
 
 ```python
-from backend_archive_payload import build_archive_payload
+from backend_archive_contract_v1 import build_archive_record
 
-payload = build_archive_payload(report)
+payload = build_archive_record(report)
 ```
 
 ## Idempotency

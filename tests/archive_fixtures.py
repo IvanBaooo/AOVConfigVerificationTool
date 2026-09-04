@@ -1,15 +1,5 @@
 from __future__ import annotations
 
-import json
-import unittest
-
-from backend_archive_payload import (
-	ARCHIVE_CONTRACT_VERSION,
-	ArchivePayloadError,
-	archive_request_headers,
-	build_archive_payload,
-)
-
 
 def sample_report() -> dict[str, object]:
 	return {
@@ -137,52 +127,3 @@ def sample_report() -> dict[str, object]:
 			"timestamp": "20260713153524",
 		},
 	}
-
-
-class BackendArchivePayloadTests(unittest.TestCase):
-	def test_builds_v1_archive_payload_from_report(self) -> None:
-		payload = build_archive_payload(sample_report())
-
-		self.assertEqual(payload["schema_version"], ARCHIVE_CONTRACT_VERSION)
-		self.assertEqual(payload["record_type"], "aov_package_archive")
-		self.assertEqual(payload["release"]["region_code"], "TW")
-		self.assertEqual(payload["release"]["package_version"], "Beta54")
-		self.assertEqual(payload["release"]["current_revisions"], [1699919, 1699997])
-		self.assertEqual(payload["package"]["file_count"], 20)
-		self.assertEqual(payload["region_filter"]["excluded_count"], 34)
-		self.assertEqual(payload["validation"]["commit_record"]["warnings"][0]["table_name"], "Hero_MD5")
-		self.assertEqual(payload["validation"]["commit_record"]["whitelist_hit_count"], 3)
-		self.assertEqual(payload["files"][0]["fixed_path"], "/Taiwan/Databin/Server/Shop/SvrSpecialSale.xml")
-
-	def test_payload_excludes_credentials_raw_svn_and_local_paths(self) -> None:
-		serialized = json.dumps(build_archive_payload(sample_report()), ensure_ascii=False)
-
-		for forbidden in (
-			"must-not-leak",
-			"svn_password",
-			"svn_username",
-			"svn_log_text",
-			"raw_line",
-			"local_path",
-			r"G:\Branches\secret",
-		):
-			self.assertNotIn(forbidden, serialized)
-
-	def test_archive_headers_reuse_report_idempotency_key(self) -> None:
-		payload = build_archive_payload(sample_report())
-		headers = archive_request_headers(payload)
-
-		self.assertEqual(headers["Idempotency-Key"], "sgame_TW_Beta54_20260713153524")
-		self.assertEqual(headers["X-AOV-Contract-Version"], ARCHIVE_CONTRACT_VERSION)
-		self.assertEqual(headers["Content-Type"], "application/json")
-
-	def test_missing_required_identity_is_rejected(self) -> None:
-		report = sample_report()
-		report["idempotency_key"] = ""
-
-		with self.assertRaisesRegex(ArchivePayloadError, "idempotency_key"):
-			build_archive_payload(report)
-
-
-if __name__ == "__main__":
-	unittest.main()

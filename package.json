@@ -8,7 +8,7 @@
     "build:renderer": "vite build",
     "start": "pnpm build:renderer && electron .",
     "check": "node --check electron/main.js && node --check electron/preload.js && vite build",
-    "test:python": "python -m unittest test_electron_bridge.py"
+    "test:python": "python -m unittest discover -s tests -p \"test_electron_bridge.py\""
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.7.0",

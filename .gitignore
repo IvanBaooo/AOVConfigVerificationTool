@@ -37,3 +37,7 @@ dist/
 .vscode/
 .DS_Store
 Thumbs.db
+
+# Local previews and handover notes
+hallmark-preview/
+AOVAutoPacker_换机开发交接_*.md

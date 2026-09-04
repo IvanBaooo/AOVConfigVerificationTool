@@ -9,7 +9,7 @@ from backend_archive_contract import (
 	archive_create_headers,
 	build_archive_record,
 )
-from test_backend_archive_payload import sample_report
+from archive_fixtures import sample_report
 
 
 class BackendArchiveContractTests(unittest.TestCase):

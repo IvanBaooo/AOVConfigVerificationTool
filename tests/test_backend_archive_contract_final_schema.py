@@ -10,7 +10,7 @@ from test_backend_archive_contract_v1 import final_sample_report
 
 class BackendArchiveContractFinalSchemaTests(unittest.TestCase):
 	def test_final_schema_overlays_strict_schema(self) -> None:
-		schema_path = Path(__file__).parent / "schemas" / "aov-package-archive-v1-final.schema.json"
+		schema_path = Path(__file__).parent.parent / "schemas" / "aov-package-archive-v1-final.schema.json"
 		schema = json.loads(schema_path.read_text(encoding="utf-8"))
 
 		self.assertEqual(
@@ -24,7 +24,7 @@ class BackendArchiveContractFinalSchemaTests(unittest.TestCase):
 		self.assertEqual(set(payload["status"]), {"package_status", "validation_status"})
 
 	def test_final_schema_restricts_region_keys_and_windows_names(self) -> None:
-		schema_path = Path(__file__).parent / "schemas" / "aov-package-archive-v1-final.schema.json"
+		schema_path = Path(__file__).parent.parent / "schemas" / "aov-package-archive-v1-final.schema.json"
 		schema = json.loads(schema_path.read_text(encoding="utf-8"))
 		overlay = schema["allOf"][1]["properties"]
 		region_names = overlay["region_filter"]["properties"]["excluded_by_region"]["propertyNames"]["enum"]

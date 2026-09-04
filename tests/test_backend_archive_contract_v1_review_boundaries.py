@@ -30,14 +30,14 @@ def report_with_skin_id(value: str) -> dict[str, object]:
 class BackendArchiveContractV1ReviewBoundaryTests(unittest.TestCase):
 	@classmethod
 	def setUpClass(cls) -> None:
-		root = Path(__file__).parent
+		root = Path(__file__).parent.parent
 		schema = json.loads(
 			(root / "schemas" / "aov-package-archive-v1-final.schema.json").read_text(encoding="utf-8")
 		)
 		cls.package_id_pattern = re.compile(
 			schema["allOf"][1]["properties"]["package_id"]["pattern"]
 		)
-		cls.contract_doc = (root / "BACKEND_ARCHIVE_CONTRACT_CURRENT.md").read_text(encoding="utf-8")
+		cls.contract_doc = (root / "docs" / "BACKEND_ARCHIVE_CONTRACT_CURRENT.md").read_text(encoding="utf-8")
 
 	def test_rejects_windows_root_and_forward_slash_unc_paths(self) -> None:
 		for value in (r"\Users\admin\secret.xml", "//server/share/secret.xml"):

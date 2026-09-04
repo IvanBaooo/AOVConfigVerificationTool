@@ -4,7 +4,7 @@ import json
 import unittest
 
 from backend_archive_contract_v1 import ArchiveContractError, build_archive_record
-from test_backend_archive_payload import sample_report
+from archive_fixtures import sample_report
 
 
 def final_sample_report() -> dict[str, object]:
@@ -92,6 +92,24 @@ class BackendArchiveContractV1Tests(unittest.TestCase):
 			"mail_status",
 		):
 			self.assertNotIn(forbidden, serialized)
+
+	def test_preserves_validation_rule_metadata_and_strips_message(self) -> None:
+		report = final_sample_report()
+		report["validation"]["rule_set"] = {
+			"rule_set_id": "aov-main",
+			"version": "2026.07.27.1",
+			"rule_hash": "a" * 64,
+			"published_at": "2026-07-27T13:00:00Z",
+			"region_code": "TW",
+			"source": "remote",
+			"message": "must not be archived",
+		}
+
+		payload = build_archive_record(report)
+		rule_set = payload["validation"]["rule_set"]
+		self.assertEqual("2026.07.27.1", rule_set["version"])
+		self.assertEqual("a" * 64, rule_set["rule_hash"])
+		self.assertNotIn("message", rule_set)
 
 
 if __name__ == "__main__":

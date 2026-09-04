@@ -1,28 +1,20 @@
 from __future__ import annotations
 
 import copy
-import importlib.util
 from collections.abc import Mapping
-from pathlib import Path
-from types import ModuleType
 from typing import Any
 
-
-def _load_implementation() -> ModuleType:
-	implementation_path = Path(__file__).resolve().parent.parent / "backend_archive_contract.py"
-	spec = importlib.util.spec_from_file_location("_aov_backend_archive_contract_impl", implementation_path)
-	if spec is None or spec.loader is None:
-		raise ImportError(f"Cannot load archive contract implementation: {implementation_path}")
-	module = importlib.util.module_from_spec(spec)
-	spec.loader.exec_module(module)
-	return module
-
-
-_implementation = _load_implementation()
-
-ARCHIVE_CONTRACT_VERSION = _implementation.ARCHIVE_CONTRACT_VERSION
-ARCHIVE_RECORD_TYPE = _implementation.ARCHIVE_RECORD_TYPE
-ArchiveContractError = _implementation.ArchiveContractError
+from .base import (
+	ARCHIVE_CONTRACT_VERSION,
+	ARCHIVE_RECORD_TYPE,
+	ArchiveContractError,
+)
+from .base import (
+	archive_create_headers as _archive_create_headers,
+)
+from .base import (
+	build_archive_record as _build_archive_record,
+)
 
 
 def _validate_reported_count(package: Mapping[str, Any], key: str) -> None:
@@ -61,11 +53,11 @@ def _normalize_package_counts(report: Mapping[str, Any]) -> dict[str, object]:
 def build_archive_record(report: Mapping[str, Any]) -> dict[str, object]:
 	if not isinstance(report, Mapping):
 		raise ArchiveContractError("Report must be a mapping")
-	return _implementation.build_archive_record(_normalize_package_counts(report))
+	return _build_archive_record(_normalize_package_counts(report))
 
 
 def archive_create_headers(payload: Mapping[str, Any]) -> dict[str, str]:
-	return _implementation.archive_create_headers(payload)
+	return _archive_create_headers(payload)
 
 
 __all__ = [

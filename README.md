@@ -16,17 +16,22 @@ operator to confirm FTP upload and backend archival.
 
 FTP upload and backend synchronization never run automatically after packaging.
 
-## Components
+## Directory layout
 
 - `src/renderer/`: React desktop frontend with shadcn-inspired primitives and design tokens.
 - `electron/`: Electron main process and secure preload bridge. The renderer is built into `electron/dist/`.
-- `electron_bridge.py`: Electron-to-Python command bridge.
+- `electron_bridge.py`: Electron-to-Python command bridge (kept at the project root; `electron/main.js` spawns it from there).
 - `packer_*.py`: packaging and report pipeline.
 - `svn_*.py`: SVN log, revision, working-copy, and DTXML diff handling.
 - `changeset_modules.py`: activity, item, reward, skin, and related analysis.
-- `archive_backend/`: local archive API and admin frontend service.
+- `archive_backend/`: local archive API and admin frontend service (`python -m archive_backend.server`).
 - `archive_web/`: archive management web assets.
-- `test_*.py`: Python regression tests.
+- `backend_archive_contract/`: archive record builder package; the implementation lives in `backend_archive_contract/base.py`.
+- `backend_archive_contract_v1.py`: final V1 contract builder and send-boundary validation.
+- `schemas/`: V1 archive JSON Schemas.
+- `tests/`: Python regression tests plus shared fixtures (`archive_fixtures.py`).
+- `tools/`: auxiliary scripts (`create_icon.py`, `generate_svn_dtxml_diff.py`).
+- `docs/`: design and contract documentation.
 
 ## Requirements
 
@@ -41,16 +46,6 @@ Install Electron dependencies:
 pnpm install
 ```
 
-Build the React renderer and start the desktop app:
-
-```powershell
-pnpm run build:renderer
-pnpm start
-```
-
-The renderer keeps the existing `window.aov` bridge contract, so Python packaging,
-SVN, FTP, and archive behavior remain in the existing backend/core modules.
-
 Install Python dependencies when backend development is needed:
 
 ```powershell
@@ -59,14 +54,25 @@ python -m pip install -r requirements-backend.txt -r requirements-test.txt
 
 ## Start
 
-Double-click `start_current_packer.bat`, or run:
+Double-click `start_packer.bat`, or run:
 
 ```powershell
-.\start_current_packer.bat
+.\start_packer.bat
 ```
 
 The launcher checks the local archive backend, starts it on
 `http://127.0.0.1:8780` when necessary, and then opens Electron.
+
+To start the pieces manually:
+
+```powershell
+python -m archive_backend.server --host 127.0.0.1 --port 8780 --no-auth
+pnpm start
+```
+
+`pnpm start` builds the React renderer and launches the desktop app. The
+renderer keeps the existing `window.aov` bridge contract, so Python packaging,
+SVN, FTP, and archive behavior remain in the backend/core modules.
 
 ## Local configuration
 
@@ -89,13 +95,20 @@ Legacy defaults can be provided through environment variables:
 
 ## Tests
 
-Run all Python tests:
+Run all Python tests from the project root (use the project virtualenv when
+present, since it carries the test dependencies such as `jsonschema`):
 
 ```powershell
-python -m unittest discover
+.venv/bin/python -m unittest discover -s tests -v
 ```
 
-Check Electron JavaScript syntax:
+or with any Python that has the test requirements installed:
+
+```powershell
+python -m unittest discover -s tests -v
+```
+
+Check Electron JavaScript syntax and the renderer build:
 
 ```powershell
 pnpm run check

@@ -14,7 +14,7 @@ from test_backend_archive_contract_v1 import final_sample_report
 class BackendArchiveContractV1JsonSchemaTests(unittest.TestCase):
 	@classmethod
 	def setUpClass(cls) -> None:
-		schema_dir = Path(__file__).parent / "schemas"
+		schema_dir = Path(__file__).parent.parent / "schemas"
 		cls.final_schema = json.loads(
 			(schema_dir / "aov-package-archive-v1-final.schema.json").read_text(encoding="utf-8")
 		)

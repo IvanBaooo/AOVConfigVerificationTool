@@ -12,7 +12,7 @@ from test_backend_archive_contract_v1 import final_sample_report
 class BackendArchiveContractV1FixedPathTests(unittest.TestCase):
 	@classmethod
 	def setUpClass(cls) -> None:
-		schema_path = Path(__file__).parent / "schemas" / "aov-package-archive-v1-final.schema.json"
+		schema_path = Path(__file__).parent.parent / "schemas" / "aov-package-archive-v1-final.schema.json"
 		schema = json.loads(schema_path.read_text(encoding="utf-8"))
 		cls.fixed_path_pattern = re.compile(schema["$defs"]["final_fixed_path"]["pattern"])
 

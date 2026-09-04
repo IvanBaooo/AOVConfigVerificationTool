@@ -5,18 +5,17 @@ Use only the following V1 files for new integration work:
 ```text
 Builder: backend_archive_contract_v1.py
 Schema:  schemas/aov-package-archive-v1-final.schema.json
-Tests:   test_backend_archive_contract_v1.py
+Tests:   tests/test_backend_archive_contract_v1.py
 ```
 
-The earlier `backend_archive_payload.py`, `backend_archive_contract.py`, and
-non-final schema files are implementation history and must not be imported by
-the web-backend integration.
+The earlier payload builders and non-final schema files are implementation
+history and must not be imported by the web-backend integration.
 
 ## Verification
 
 ```powershell
 python -m pip install -r requirements-test.txt
-python -m unittest discover -v
+python -m unittest discover -s tests -v
 ```
 
 The suite includes Draft 2020-12 validation of the complete final Schema with its

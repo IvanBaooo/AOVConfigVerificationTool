@@ -16,7 +16,7 @@ from backend_archive_contract_v1 import build_archive_record
 
 class ArchiveBackendRealReportTests(unittest.TestCase):
 	def test_latest_tw_report_create_replay_list_and_detail(self) -> None:
-		root = Path(__file__).parent
+		root = Path(__file__).parent.parent
 		report_path = (
 			root
 			/ "output"

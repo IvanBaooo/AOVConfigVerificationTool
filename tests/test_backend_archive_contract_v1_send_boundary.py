@@ -30,10 +30,24 @@ class BackendArchiveContractV1SendBoundaryTests(unittest.TestCase):
 					archive_create_headers(payload)
 
 	def test_final_schema_overlays_archive_root(self) -> None:
-		schema_path = Path(__file__).parent / "schemas" / "aov-package-archive-v1-final.schema.json"
+		schema_path = Path(__file__).parent.parent / "schemas" / "aov-package-archive-v1-final.schema.json"
 		schema = json.loads(schema_path.read_text(encoding="utf-8"))
 		archive_root = schema["allOf"][1]["properties"]["package"]["properties"]["archive_root"]
 		self.assertEqual(archive_root["$ref"], "#/$defs/final_fixed_path")
+
+	def test_invalid_rule_hash_is_rejected_at_send_boundary(self) -> None:
+		report = final_sample_report()
+		report["validation"]["rule_set"] = {
+			"rule_set_id": "aov-main",
+			"version": "1",
+			"rule_hash": "invalid",
+			"published_at": "2026-07-27T13:00:00Z",
+			"region_code": "TW",
+			"source": "remote",
+		}
+
+		with self.assertRaisesRegex(ArchiveContractError, "rule_hash"):
+			build_archive_record(report)
 
 
 if __name__ == "__main__":

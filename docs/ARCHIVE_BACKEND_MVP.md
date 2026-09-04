@@ -134,7 +134,7 @@ packaging.
 
 ```powershell
 python -m pip install -r requirements-test.txt
-python -m unittest discover -p "test_archive_backend_*.py" -v
+python -m unittest discover -s tests -p "test_archive_backend_*.py" -v
 
 ```
 

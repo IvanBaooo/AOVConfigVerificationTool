@@ -5,12 +5,12 @@ import unittest
 from pathlib import Path
 
 from backend_archive_contract import IDEMPOTENCY_PATTERN, build_archive_record
-from test_backend_archive_payload import sample_report
+from archive_fixtures import sample_report
 
 
 class BackendArchiveContractSchemaTests(unittest.TestCase):
 	def test_strict_schema_closes_sensitive_nested_objects(self) -> None:
-		schema_path = Path(__file__).parent / "schemas" / "aov-package-archive-v1-strict.schema.json"
+		schema_path = Path(__file__).parent.parent / "schemas" / "aov-package-archive-v1-strict.schema.json"
 		schema = json.loads(schema_path.read_text(encoding="utf-8"))
 
 		self.assertFalse(schema["additionalProperties"])
@@ -23,7 +23,7 @@ class BackendArchiveContractSchemaTests(unittest.TestCase):
 		self.assertNotIn("local_path", schema["$defs"]["skin_fields"]["propertyNames"]["enum"])
 
 	def test_schema_and_builder_share_idempotency_pattern(self) -> None:
-		schema_path = Path(__file__).parent / "schemas" / "aov-package-archive-v1-strict.schema.json"
+		schema_path = Path(__file__).parent.parent / "schemas" / "aov-package-archive-v1-strict.schema.json"
 		schema = json.loads(schema_path.read_text(encoding="utf-8"))
 		self.assertEqual(
 			schema["properties"]["idempotency_key"]["pattern"],
@@ -34,7 +34,7 @@ class BackendArchiveContractSchemaTests(unittest.TestCase):
 		report = sample_report()
 		report["package"]["file_count"] = 1
 		payload = build_archive_record(report)
-		schema_path = Path(__file__).parent / "schemas" / "aov-package-archive-v1-strict.schema.json"
+		schema_path = Path(__file__).parent.parent / "schemas" / "aov-package-archive-v1-strict.schema.json"
 		schema = json.loads(schema_path.read_text(encoding="utf-8"))
 
 		self.assertEqual(set(payload["status"]), set(schema["properties"]["status"]["properties"]))

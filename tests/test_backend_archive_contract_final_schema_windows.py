@@ -9,7 +9,7 @@ from pathlib import Path
 class BackendArchiveContractFinalSchemaWindowsTests(unittest.TestCase):
 	@classmethod
 	def setUpClass(cls) -> None:
-		schema_path = Path(__file__).parent / "schemas" / "aov-package-archive-v1-final.schema.json"
+		schema_path = Path(__file__).parent.parent / "schemas" / "aov-package-archive-v1-final.schema.json"
 		schema = json.loads(schema_path.read_text(encoding="utf-8"))
 		cls.filename_pattern = re.compile(schema["$defs"]["windows_filename"]["pattern"])
 

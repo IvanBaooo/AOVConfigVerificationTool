@@ -85,7 +85,7 @@ class LocalSettingsTests(unittest.TestCase):
 		with patch.dict(os.environ, {}, clear=True):
 			self.assertEqual(
 				default_settings_path(),
-				Path(__file__).resolve().parent / "settings.json",
+				Path(__file__).resolve().parent.parent / "settings.json",
 			)
 	def test_environment_override_controls_default_path(self) -> None:
 		with tempfile.TemporaryDirectory() as temp_dir:
