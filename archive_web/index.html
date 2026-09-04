@@ -20,15 +20,15 @@
 
       <nav class="primary-nav" aria-label="主要栏目">
         <button class="nav-item" id="nav-dashboard" type="button">
-          <span class="nav-icon" aria-hidden="true">D</span>
+          <span class="nav-index" aria-hidden="true">01</span>
           <span>Dashboard</span>
         </button>
         <button class="nav-item active" id="nav-archives" type="button" aria-current="page">
-          <span class="nav-icon" aria-hidden="true">A</span>
+          <span class="nav-index" aria-hidden="true">02</span>
           <span>归档记录</span>
         </button>
         <button class="nav-item" id="nav-rules" type="button">
-          <span class="nav-icon" aria-hidden="true">R</span>
+          <span class="nav-index" aria-hidden="true">03</span>
           <span>规则管理</span>
         </button>
       </nav>
@@ -83,8 +83,11 @@
           <section class="dashboard-section" aria-labelledby="dashboard-heatmap-title">
             <div class="section-heading dashboard-section-heading">
               <div>
-                <h2 id="dashboard-heatmap-title">更新热点</h2>
-                <p>最近一年的归档活跃度，颜色越深归档越多；点击格子按当天查看归档记录</p>
+                <span class="section-number">01</span>
+                <div>
+                  <h2 id="dashboard-heatmap-title">更新热点</h2>
+                  <p>最近一年的归档活跃度，颜色越深归档越多；点击格子按当天查看归档记录</p>
+                </div>
               </div>
               <div class="heatmap-region-switch" id="heatmap-region-switch" role="group" aria-label="热点图区域">
                 <button class="region-button heatmap-region-button active" type="button" data-region="" aria-pressed="true">全部</button>
@@ -121,8 +124,11 @@
           <section class="dashboard-section" aria-labelledby="dashboard-regions-title">
             <div class="section-heading dashboard-section-heading">
               <div>
-                <h2 id="dashboard-regions-title">区域基线</h2>
-                <p>本地打包工具读取的上次对外版本</p>
+                <span class="section-number">02</span>
+                <div>
+                  <h2 id="dashboard-regions-title">区域基线</h2>
+                  <p>本地打包工具读取的上次对外版本</p>
+                </div>
               </div>
             </div>
             <div class="table-frame dashboard-table-frame">
@@ -139,8 +145,11 @@
           <section class="dashboard-section" aria-labelledby="dashboard-recent-title">
             <div class="section-heading dashboard-section-heading">
               <div>
-                <h2 id="dashboard-recent-title">最近归档</h2>
-                <p>最近确认归档的正常记录</p>
+                <span class="section-number">03</span>
+                <div>
+                  <h2 id="dashboard-recent-title">最近归档</h2>
+                  <p>最近确认归档的正常记录</p>
+                </div>
               </div>
             </div>
             <div class="table-frame dashboard-table-frame">
@@ -159,8 +168,11 @@
       <main id="archive-view">
         <section class="region-bar" aria-labelledby="region-title">
           <div>
-            <h2 id="region-title">发布区域</h2>
-            <p>切换区域查看对应的对外归档记录</p>
+            <span class="section-number">01</span>
+            <div>
+              <h2 id="region-title">发布区域</h2>
+              <p>切换区域查看对应的对外归档记录</p>
+            </div>
           </div>
           <div class="region-switch" id="region-switch" role="group" aria-label="发布区域">
             <button class="region-button active" type="button" data-region="" aria-pressed="true">全部</button>
@@ -193,8 +205,11 @@
         <section class="workspace">
           <div class="section-heading">
             <div>
-              <h2>归档列表</h2>
-              <p id="result-caption">等待加载</p>
+              <span class="section-number">02</span>
+              <div>
+                <h2>归档列表</h2>
+                <p id="result-caption">等待加载</p>
+              </div>
             </div>
             <span class="filter-date-chip hidden" id="filter-date-chip">
               <span id="filter-date-chip-text"></span>
@@ -398,8 +413,11 @@
             <section class="rule-edit-section" aria-labelledby="mapping-heading">
               <div class="rule-section-heading">
                 <div>
-                  <h3 id="mapping-heading">路径映射</h3>
-                  <p>将 ServerBytes 路径转换为 Report 中的可读表名</p>
+                  <span class="section-number">01</span>
+                  <div>
+                    <h3 id="mapping-heading">路径映射</h3>
+                    <p>将 ServerBytes 路径转换为 Report 中的可读表名</p>
+                  </div>
                 </div>
                 <button class="button button-secondary" id="add-mapping" type="button" disabled>+ 添加映射</button>
               </div>
@@ -417,8 +435,11 @@
             <section class="rule-edit-section" aria-labelledby="whitelist-heading">
               <div class="rule-section-heading">
                 <div>
-                  <h3 id="whitelist-heading">提交告警白名单</h3>
-                  <p>支持文件名、完整路径、目录和通配符</p>
+                  <span class="section-number">02</span>
+                  <div>
+                    <h3 id="whitelist-heading">提交告警白名单</h3>
+                    <p>支持文件名、完整路径、目录和通配符</p>
+                  </div>
                 </div>
                 <button class="button button-secondary" id="add-whitelist" type="button" disabled>+ 添加规则</button>
               </div>
@@ -429,8 +450,11 @@
             <details class="rule-edit-section content-check-section" id="content-check-panel">
               <summary class="content-check-summary">
                 <div>
-                  <h3 id="content-check-heading">表内容校验</h3>
-                  <p>读取 DTXML，检查皮肤长期上下架状态、短期促销时间与促销 ID 关联</p>
+                  <span class="section-number">03</span>
+                  <div>
+                    <h3 id="content-check-heading">表内容校验</h3>
+                    <p>读取 DTXML，检查皮肤长期上下架状态、短期促销时间与促销 ID 关联</p>
+                  </div>
                 </div>
                 <div class="content-check-summary-meta">
                   <span class="badge badge-neutral">后续</span>

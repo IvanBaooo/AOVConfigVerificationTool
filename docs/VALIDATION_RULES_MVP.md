@@ -172,8 +172,9 @@ SvrHeroSkinShop.bytes -> 英雄皮肤促销表
 
 `{region}` 在本地执行时替换为 TW/TH/VN/ID。区域规则使用相同 `id`
 覆盖公共规则；将区域规则的 `enabled` 设为 `false` 可以仅对该区域关闭检查。
-校验结果继续写入 Report 的 `validation.checks.skin_precheck`，归档只记录所用
-规则版本与最终校验结果，不上传本地绝对路径。
+校验结果继续写入 Report 的 `validation.checks`（按规则 type 归键），归档时统一收敛为
+`validation.checks` 数组（含规则名、状态、计数与表归因），只记录所用规则版本与最终
+校验结果，不上传本地绝对路径。
 草稿只存在于当前浏览器页面，未确认发布时不会写入数据库。发布后的
 `rule_set_id + version` 不可修改，后续调整必须新建版本。
 

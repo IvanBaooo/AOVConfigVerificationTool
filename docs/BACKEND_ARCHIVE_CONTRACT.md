@@ -66,7 +66,7 @@ archive records.
 - `region_filter`: original, included, and excluded ServerBytes counts.
 - `validation.summary`: error, warning, confirm, and skipped counts.
 - `validation.commit_record`: readable missing-change warnings and whitelist hits.
-- `validation.skin_precheck`: skin sale-window confirmations and warnings.
+- `validation.checks`: per-rule results (type, name, status, counts, table attribution, capped items/warnings); skin precheck, when enabled, appears as an ordinary entry.
 - `files`: allowlisted packaged-file metadata without raw SVN text or local paths.
 
 ## Sync order
