@@ -153,6 +153,19 @@
         "checks": {
           "type": "array",
           "items": { "$ref": "#/$defs/check_entry" }
+        },
+        "acknowledgments": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["type", "name", "acknowledged_at"],
+            "properties": {
+              "type": { "type": "string", "minLength": 1, "maxLength": 64 },
+              "name": { "type": "string", "minLength": 1, "maxLength": 128 },
+              "acknowledged_at": { "type": "string", "minLength": 1 }
+            }
+          }
         }
       }
     },

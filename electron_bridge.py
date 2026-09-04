@@ -73,6 +73,24 @@ def _boolean(value: object, default: bool = False) -> bool:
 	return value if isinstance(value, bool) else default
 
 
+def _acknowledgments(value: object) -> list[dict[str, str]]:
+	if value is None:
+		return []
+	if not isinstance(value, list):
+		raise ValueError("acknowledgments must be a list")
+	result: list[dict[str, str]] = []
+	for entry in value:
+		if not isinstance(entry, Mapping):
+			raise ValueError("acknowledgment entries must be objects")
+		ack_type = _string(entry.get("type"))
+		name = _string(entry.get("name"))
+		acknowledged_at = _string(entry.get("acknowledged_at"))
+		if not ack_type or not name or not acknowledged_at:
+			raise ValueError("acknowledgment entries require non-empty type, name and acknowledged_at")
+		result.append({"type": ack_type, "name": name, "acknowledged_at": acknowledged_at})
+	return result
+
+
 def _split_lines(value: object) -> list[str]:
 	text = _string(value)
 	return [
@@ -865,6 +883,7 @@ class ElectronBridgeService:
 			ftp_settings=self._ftp_settings(region),
 			backend_settings=backend,
 			policy=policy,
+			acknowledgments=_acknowledgments(payload.get("acknowledgments")),
 			progress=lambda value: emit(
 				"progress",
 				{

@@ -200,6 +200,27 @@ def _copy_check_entry(check_type: object, value: object) -> dict[str, object]:
 	}
 
 
+def _copy_acknowledgments(value: object) -> list[dict[str, object]]:
+	if value is None:
+		return []
+	if not isinstance(value, list):
+		raise ArchiveContractError("Expected acknowledgment list: validation.acknowledgments")
+	result: list[dict[str, object]] = []
+	for index, raw_entry in enumerate(value):
+		entry = _mapping(raw_entry)
+		ack_type = _required_text(entry, "type", f"acknowledgments[{index}].type")
+		result.append(
+			{
+				"type": ack_type,
+				"name": _optional_text(entry, "name") or ack_type,
+				"acknowledged_at": _required_text(
+					entry, "acknowledged_at", f"acknowledgments[{index}].acknowledged_at"
+				),
+			}
+		)
+	return result
+
+
 def _copy_commit_warning(value: object) -> dict[str, object]:
 	warning = _mapping(value)
 	result: dict[str, object] = {}
@@ -411,6 +432,7 @@ def build_archive_record(report: Mapping[str, Any]) -> dict[str, object]:
 				for check_type, check_value in checks.items()
 				if check_type != "commit_record"
 			],
+			"acknowledgments": _copy_acknowledgments(validation.get("acknowledgments")),
 		},
 		"files": files,
 	}

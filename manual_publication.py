@@ -183,12 +183,17 @@ def _hash_file(path: Path, algorithm: str) -> str:
 def build_verified_archive_payload(
 	report_path: str | Path,
 	archive_path: str | Path | None = None,
+	acknowledgments: list[dict[str, str]] | None = None,
 ) -> dict[str, object]:
 	report_file = Path(report_path)
 	try:
 		report = json.loads(report_file.read_text(encoding="utf-8"))
 	except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
 		raise PublicationPreflightError(f"Cannot read package report: {error}") from error
+	if acknowledgments is not None and isinstance(report, dict):
+		validation = report.get("validation")
+		if isinstance(validation, dict):
+			validation["acknowledgments"] = list(acknowledgments)
 	try:
 		payload = build_archive_record(report)
 	except ArchiveContractError as error:
@@ -389,8 +394,11 @@ class ArchiveBackendClient:
 		self,
 		report_path: str | Path,
 		settings: BackendSettings,
+		acknowledgments: list[dict[str, str]] | None = None,
 	) -> ArchiveSyncResult:
-		return self.sync_payload(build_verified_archive_payload(report_path), settings)
+		return self.sync_payload(
+			build_verified_archive_payload(report_path, acknowledgments=acknowledgments), settings
+		)
 
 	def sync_payload(
 		self,
@@ -450,7 +458,12 @@ class ArchiveBackendClient:
 
 
 class BackendClient(Protocol):
-	def sync_report(self, report_path: str | Path, settings: BackendSettings) -> ArchiveSyncResult: ...
+	def sync_report(
+		self,
+		report_path: str | Path,
+		settings: BackendSettings,
+		acknowledgments: list[dict[str, str]] | None = None,
+	) -> ArchiveSyncResult: ...
 
 
 class SyncQueue(Protocol):
@@ -484,13 +497,14 @@ class ManualPublicationService:
 		ftp_settings: FtpSettings,
 		backend_settings: BackendSettings,
 		policy: RemoteFilePolicy,
+		acknowledgments: list[dict[str, str]] | None = None,
 		progress: ProgressCallback | None = None,
 		cancel_event: threading.Event | None = None,
 		stage: StageCallback | None = None,
 	) -> PublicationResult:
 		if stage is not None:
 			stage("preflight")
-		payload = build_verified_archive_payload(report_path, archive_path)
+		payload = build_verified_archive_payload(report_path, archive_path, acknowledgments=acknowledgments)
 		if stage is not None:
 			stage("ftp_upload")
 		ftp_result = self.ftp_publisher.upload(
@@ -503,7 +517,9 @@ class ManualPublicationService:
 		if stage is not None:
 			stage("backend_archive")
 		try:
-			archive_result = self.backend_client.sync_report(report_path, backend_settings)
+			archive_result = self.backend_client.sync_report(
+				report_path, backend_settings, acknowledgments=acknowledgments
+			)
 		except BackendArchiveError as error:
 			queued = False
 			queue_error = ""

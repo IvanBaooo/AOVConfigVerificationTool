@@ -129,6 +129,52 @@ class BackendArchiveContractV1Tests(unittest.TestCase):
 		self.assertEqual("a" * 64, rule_set["rule_hash"])
 		self.assertNotIn("message", rule_set)
 
+	def test_acknowledgments_default_to_empty_list(self) -> None:
+		payload = build_archive_record(final_sample_report())
+		self.assertEqual(payload["validation"]["acknowledgments"], [])
+
+	def test_acknowledgments_survive_normalization(self) -> None:
+		report = final_sample_report()
+		report["validation"]["acknowledgments"] = [
+			{
+				"type": "skin_precheck",
+				"name": "皮肤促销窗口预检",
+				"acknowledged_at": "2026-09-04T10:00:00+08:00",
+				"operator_note": "dropped",
+			},
+			{"type": "expiry_time_cross_check", "acknowledged_at": "2026-09-04T10:01:00+08:00"},
+		]
+
+		payload = build_archive_record(report)
+
+		self.assertEqual(
+			payload["validation"]["acknowledgments"],
+			[
+				{
+					"type": "skin_precheck",
+					"name": "皮肤促销窗口预检",
+					"acknowledged_at": "2026-09-04T10:00:00+08:00",
+				},
+				{
+					"type": "expiry_time_cross_check",
+					"name": "expiry_time_cross_check",
+					"acknowledged_at": "2026-09-04T10:01:00+08:00",
+				},
+			],
+		)
+
+	def test_acknowledgments_reject_malformed_entries(self) -> None:
+		for acknowledgments in (
+			{"type": "skin_precheck"},
+			[{"type": "skin_precheck"}],
+			[{"type": "", "acknowledged_at": "2026-09-04T10:00:00Z"}],
+			[{"type": "skin_precheck", "acknowledged_at": " "}],
+		):
+			report = final_sample_report()
+			report["validation"]["acknowledgments"] = acknowledgments
+			with self.assertRaises(ArchiveContractError):
+				build_archive_record(report)
+
 
 if __name__ == "__main__":
 	unittest.main()

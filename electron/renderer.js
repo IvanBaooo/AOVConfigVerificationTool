@@ -13,6 +13,7 @@ const state = {
   validationRules: [],
   ruleNameOverrides: {},
   result: null,
+  acknowledged: new Set(),
   busy: false,
 };
 
@@ -823,6 +824,7 @@ function ruleCheckRow(key, result) {
   const statusLabel = { passed: "通过", warning: "有告警", error: "错误", skipped: "未执行", confirm: "待确认" }[status] || status;
   const tone = status === "passed" ? "green" : status === "skipped" ? "plain" : status === "warning" ? "amber" : status === "error" ? "red" : "amber";
   const row = el("div", "rule-row");
+  const side = el("div", "rule-row-side");
   const main = el("div", "rule-row-main");
   const orderBadge = ruleOrderBadge(key);
   main.append(el("p", "rule-row-name", (orderBadge ? `${orderBadge} · ` : "") + ruleLabel(key)));
@@ -942,8 +944,44 @@ function ruleCheckRow(key, result) {
       main.append(detail);
     }
   }
-  row.append(main, el("span", `tag tag-${tone}`, statusLabel));
+  row.append(main, side);
+  side.append(el("span", `tag tag-${tone}`, statusLabel));
+  if (status === "confirm") {
+    const ack = el("label", "rule-ack");
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.checked = state.acknowledged.has(key);
+    checkbox.addEventListener("change", () => {
+      if (checkbox.checked) {
+        state.acknowledged.add(key);
+      } else {
+        state.acknowledged.delete(key);
+      }
+      updateArchiveGate();
+    });
+    ack.append(checkbox, document.createTextNode("已人工确认"));
+    side.append(ack);
+  }
   return row;
+}
+
+function confirmRuleEntries() {
+  const checks = state.result?.report?.validation?.checks || {};
+  return Object.entries(checks).filter(([key, value]) => key !== "commit_record" && value && typeof value === "object" && value.status === "confirm");
+}
+
+function updateArchiveGate() {
+  if (!state.result) return;
+  const pending = confirmRuleEntries().filter(([key]) => !state.acknowledged.has(key));
+  $("#confirm-archive").disabled = !state.result.can_archive || pending.length > 0;
+  const hint = $("#archive-gate-hint");
+  if (state.result.can_archive && pending.length) {
+    hint.textContent = `还有 ${pending.length} 条规则待人工确认`;
+    hint.classList.remove("hidden");
+  } else {
+    hint.textContent = "";
+    hint.classList.add("hidden");
+  }
 }
 
 function renderRuleChecks(checks) {
@@ -965,6 +1003,7 @@ function renderRuleChecks(checks) {
 
 function renderResult(result) {
   state.result = result;
+  state.acknowledged = new Set();
   const report = result.report || {};
   const overview = result.module_overview || report?.module_analysis?.overview || {};
 
@@ -974,7 +1013,6 @@ function renderResult(result) {
   $("#result-files").textContent = result.success_count;
   $("#result-warnings").textContent = result.validation.warning_count;
   $("#result-errors").textContent = result.validation.error_count + result.failure_count;
-  $("#confirm-archive").disabled = !result.can_archive;
   const status = $("#result-status");
   status.textContent = result.can_archive ? "待人工确认" : "禁止归档";
   status.className = `result-status ${result.can_archive ? "" : "error"}`;
@@ -988,6 +1026,7 @@ function renderResult(result) {
   renderModuleGroups(report.module_analysis);
   renderFileTable(report.files);
   renderRuleChecks(report.validation?.checks);
+  updateArchiveGate();
   $("#result-section").scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
@@ -1328,10 +1367,15 @@ async function confirmArchive() {
       if (!accepted) throw new Error("已取消归档");
       policy = "replace";
     }
+    const acknowledgedAt = new Date().toISOString();
+    const acknowledgments = confirmRuleEntries()
+      .filter(([key]) => state.acknowledged.has(key))
+      .map(([key, value]) => ({ type: key, name: String(value.name || ruleLabel(key)), acknowledged_at: acknowledgedAt }));
     const result = await window.aov.request("publish", {
       region: state.region,
       policy,
       backend_token: $("#backend-token").value,
+      acknowledgments,
     });
     $("#upload-bar").value = 100;
     $("#upload-percent").textContent = "100%";
@@ -1342,7 +1386,7 @@ async function confirmArchive() {
     setRunStatus("归档完成", "success");
     toast(`归档完成：${result.package_id}`, "success");
   } catch (error) {
-    $("#confirm-archive").disabled = false;
+    updateArchiveGate();
     appendLog(error.message, error.message === "已取消归档" ? "warning" : "error");
     if (error.message !== "已取消归档") toast(error.message, "error");
   } finally {

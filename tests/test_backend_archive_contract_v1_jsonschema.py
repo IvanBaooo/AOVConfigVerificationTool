@@ -39,6 +39,19 @@ class BackendArchiveContractV1JsonSchemaTests(unittest.TestCase):
 		errors = sorted(self.validator.iter_errors(payload), key=lambda error: list(error.path))
 		self.assertEqual(errors, [], "\n".join(error.message for error in errors))
 
+	def test_payload_with_acknowledgments_passes_full_final_schema(self) -> None:
+		report = final_sample_report()
+		report["validation"]["acknowledgments"] = [
+			{
+				"type": "skin_precheck",
+				"name": "皮肤促销窗口预检",
+				"acknowledged_at": "2026-09-04T10:00:00+08:00",
+			}
+		]
+		payload = build_archive_record(report)
+		errors = sorted(self.validator.iter_errors(payload), key=lambda error: list(error.path))
+		self.assertEqual(errors, [], "\n".join(error.message for error in errors))
+
 	def test_final_schema_rejects_mutable_status_and_bad_archive_root(self) -> None:
 		payload = build_archive_record(final_sample_report())
 		payload["status"]["ftp_status"] = "success"
