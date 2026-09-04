@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -98,6 +99,63 @@ class ElectronBridgeSettingsTests(unittest.TestCase):
 
 			self.assertEqual(result["pending_sync_count"], 0)
 			self.assertNotIn("password", result["settings"]["ftp_profiles"]["TW"])
+
+	def test_bootstrap_returns_cached_rule_set_metadata(self) -> None:
+		with tempfile.TemporaryDirectory() as temporary_directory:
+			root = Path(temporary_directory)
+			save_local_settings({"package_region": "TH"}, root / "settings.json")
+			rules_directory = root / "rules"
+			rules_directory.mkdir()
+			(rules_directory / "cached_rule_set.json").write_text(
+				json.dumps({
+					"schema_version": 1,
+					"regions": {
+						"TW": {"rule_set_id": "aov-main", "version": "1", "published_at": "2026-01-01T00:00:00Z"},
+						"TH": {
+							"rule_set_id": "aov-main",
+							"version": "2026.07.27.1",
+							"published_at": "2026-07-27T13:00:00Z",
+							"region_code": "TH",
+						},
+					},
+				}),
+				encoding="utf-8",
+			)
+			service = ElectronBridgeService(root)
+
+			result = service.command_bootstrap({}, lambda _event, _data: None)
+
+		info = result["cached_rule_set"]
+		self.assertEqual("TH", info["region_code"])
+		self.assertEqual("aov-main", info["rule_set_id"])
+		self.assertEqual("2026.07.27.1", info["version"])
+		self.assertEqual("2026-07-27T13:00:00Z", info["published_at"])
+
+	def test_bootstrap_cached_rule_set_is_none_without_cache_file(self) -> None:
+		with tempfile.TemporaryDirectory() as temporary_directory:
+			root = Path(temporary_directory)
+			save_local_settings({"package_region": "TW"}, root / "settings.json")
+			service = ElectronBridgeService(root)
+
+			result = service.command_bootstrap({}, lambda _event, _data: None)
+
+		self.assertIsNone(result["cached_rule_set"])
+
+	def test_bootstrap_cached_rule_set_is_none_when_region_missing(self) -> None:
+		with tempfile.TemporaryDirectory() as temporary_directory:
+			root = Path(temporary_directory)
+			save_local_settings({"package_region": "ID"}, root / "settings.json")
+			rules_directory = root / "rules"
+			rules_directory.mkdir()
+			(rules_directory / "cached_rule_set.json").write_text(
+				json.dumps({"schema_version": 1, "regions": {"TW": {"rule_set_id": "aov-main", "version": "1", "published_at": "2026-01-01T00:00:00Z"}}}),
+				encoding="utf-8",
+			)
+			service = ElectronBridgeService(root)
+
+			result = service.command_bootstrap({}, lambda _event, _data: None)
+
+		self.assertIsNone(result["cached_rule_set"])
 
 	def test_packaging_input_reads_tdr_root_and_preserves_serverbytes_anchor(self) -> None:
 		log_text = "\n".join([

@@ -18,8 +18,7 @@ FTP upload and backend synchronization never run automatically after packaging.
 
 ## Directory layout
 
-- `src/renderer/`: React desktop frontend with shadcn-inspired primitives and design tokens.
-- `electron/`: Electron main process and secure preload bridge. The renderer is built into `electron/dist/`.
+- `electron/`: current local desktop frontend (vanilla JS renderer, no build step).
 - `electron_bridge.py`: Electron-to-Python command bridge (kept at the project root; `electron/main.js` spawns it from there).
 - `packer_*.py`: packaging and report pipeline.
 - `svn_*.py`: SVN log, revision, working-copy, and DTXML diff handling.
@@ -70,7 +69,7 @@ python -m archive_backend.server --host 127.0.0.1 --port 8780 --no-auth
 pnpm start
 ```
 
-`pnpm start` builds the React renderer and launches the desktop app. The
+`pnpm start` launches the desktop app (vanilla JS renderer, no build step). The
 renderer keeps the existing `window.aov` bridge contract, so Python packaging,
 SVN, FTP, and archive behavior remain in the backend/core modules.
 

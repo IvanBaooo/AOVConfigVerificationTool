@@ -85,6 +85,27 @@ def renderer_settings(settings: Mapping[str, object]) -> dict[str, object]:
 	return result
 
 
+def cached_rule_set_info(project_root: str | Path, region: str) -> dict[str, object] | None:
+	"""读取本地缓存规则集元信息（只读文件，不请求后端）；缺失或损坏时返回 None。"""
+	cache_path = Path(project_root) / "rules" / "cached_rule_set.json"
+	try:
+		data = json.loads(cache_path.read_text(encoding="utf-8"))
+	except (OSError, ValueError):
+		return None
+	regions = data.get("regions") if isinstance(data, Mapping) else None
+	if not isinstance(regions, Mapping):
+		return None
+	rule_set = regions.get(str(region).upper())
+	if not isinstance(rule_set, Mapping):
+		return None
+	return {
+		"region_code": _string(rule_set.get("region_code")) or str(region).upper(),
+		"rule_set_id": _string(rule_set.get("rule_set_id")),
+		"version": _string(rule_set.get("version")),
+		"published_at": _string(rule_set.get("published_at")),
+	}
+
+
 def merge_settings(
 	existing: Mapping[str, object],
 	incoming: Mapping[str, object],
@@ -232,11 +253,13 @@ class ElectronBridgeService:
 
 	def command_bootstrap(self, _payload: Mapping[str, object], _emit: EventCallback) -> dict[str, object]:
 		settings = load_local_settings(self.settings_path)
+		region = _string(settings.get("package_region")).upper() or "TW"
 		return {
 			"settings": renderer_settings(settings),
 			"settings_path": str(self.settings_path),
 			"output_path": str(self.output_parent),
 			"pending_sync_count": self.queue.count(),
+			"cached_rule_set": cached_rule_set_info(self.project_root, region),
 		}
 
 	def command_save_settings(self, payload: Mapping[str, object], _emit: EventCallback) -> dict[str, object]:
