@@ -5,7 +5,7 @@ import re
 import time
 import xml.etree.ElementTree as XmlET
 from collections import defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from fnmatch import fnmatch
 from math import ceil
@@ -16,13 +16,21 @@ from typing import DefaultDict, Dict, Iterable, List, Mapping, MutableMapping, O
 MODULE_ANALYSIS_SCHEMA_VERSION = "aov-module-analysis/v1"
 
 
-@dataclass(frozen=True)
+@dataclass
 class ModuleContext:
 	tdr_root: str = ""
 	region_code: str = "TW"
+	_activity_index: Optional["ActivityReferenceIndex"] = field(default=None, repr=False, compare=False)
 
 	def dtxml_path(self, file_name: str) -> Path:
 		return Path(self.tdr_root) / "Xml" / "Garena" / self.region_code.upper() / "CommonCore" / file_name
+
+	@property
+	def activity_index(self) -> "ActivityReferenceIndex":
+		"""全量快照的活动关联索引，同一次打包内懒加载并共享（校验与模块解读复用）。"""
+		if self._activity_index is None:
+			self._activity_index = ActivityReferenceIndex(self)
+		return self._activity_index
 
 
 class ChangeSetModule(Protocol):
@@ -1672,7 +1680,7 @@ class ActivityModule:
 
 	def analyze(self, changes: Sequence[Mapping[str, object]], context: ModuleContext) -> Dict[str, object]:
 		direct_changes = [change for change in changes if self.matches(change)]
-		reference_index = ActivityReferenceIndex(context)
+		reference_index = context.activity_index
 		impacts_by_activity = reference_index.impacts_for_changes(changes)
 		groups: Dict[str, List[Mapping[str, object]]] = {}
 		for change in direct_changes:
@@ -2097,7 +2105,7 @@ class RewardModule:
 		)
 
 	def analyze(self, changes: Sequence[Mapping[str, object]], context: ModuleContext) -> Dict[str, object]:
-		index = ActivityReferenceIndex(context)
+		index = context.activity_index
 		items = []
 		for change in changes:
 			for reward_id in _changed_values(change, "随机奖励ID"):
@@ -2202,7 +2210,7 @@ class OutputLimitModule:
 		}
 
 	def analyze(self, changes: Sequence[Mapping[str, object]], context: ModuleContext) -> Dict[str, object]:
-		index = ActivityReferenceIndex(context)
+		index = context.activity_index
 		grouped: DefaultDict[str, List[Mapping[str, object]]] = defaultdict(list)
 		for change in changes:
 			reward_id = _row(change).get("随机奖励ID") or _business_key_value(change, "随机奖励ID")
@@ -4262,7 +4270,7 @@ class ItemModule:
 
 	def analyze(self, changes: Sequence[Mapping[str, object]], context: ModuleContext) -> Dict[str, object]:
 		items = []
-		reference_index = ActivityReferenceIndex(context)
+		reference_index = context.activity_index
 		changes_by_item: DefaultDict[str, List[Mapping[str, object]]] = defaultdict(list)
 		for change in changes:
 			item_id = _row(change).get("ID") or _business_key_value(change, "ID")
@@ -4636,10 +4644,12 @@ class ModuleRegistry:
 def run_changeset_modules(
 	changeset: MutableMapping[str, object],
 	validation_config: Optional[Mapping[str, object]] = None,
+	context: Optional[ModuleContext] = None,
 ) -> Dict[str, object]:
 	config = validation_config or {}
-	context = ModuleContext(
-		tdr_root=str(config.get("tdr_root") or ""),
-		region_code=str(config.get("region_code") or "TW"),
-	)
+	if context is None:
+		context = ModuleContext(
+			tdr_root=str(config.get("tdr_root") or ""),
+			region_code=str(config.get("region_code") or "TW"),
+		)
 	return ModuleRegistry().analyze(changeset, context)

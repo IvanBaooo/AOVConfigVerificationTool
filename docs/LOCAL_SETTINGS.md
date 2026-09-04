@@ -25,6 +25,11 @@ authentication-cache preference, previous external baseline, package region and
 version, validation switches, validation window, commit whitelist, backend URL,
 and region-specific FTP profiles.
 
+Validation rule switches are stored as `disabled_rule_ids` (list of rule IDs
+disabled on the settings page) and `rule_name_overrides` (map of rule ID to a
+custom display name). They overlay the backend/default rule set for local runs
+only.
+
 FTP profiles are keyed by `TW`, `TH`, `VN`, and `ID`. Each profile stores its
 host, port, username, password, remote directory, and passive-mode setting:
 

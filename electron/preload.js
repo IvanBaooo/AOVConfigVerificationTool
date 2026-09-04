@@ -5,6 +5,7 @@ const allowedCommands = new Set([
   "save_settings",
   "check_backend",
   "check_ftp",
+  "list_validation_rules",
   "pack",
   "inspect_archive",
   "publish",

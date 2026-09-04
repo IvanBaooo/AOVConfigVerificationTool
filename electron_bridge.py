@@ -23,6 +23,18 @@ from packer_core import PackagingError
 from packer_mvp_region_named import pack_incremental_package_mvp_region_named
 from publication_queue import PublicationQueue
 from release_baseline_client import ReleaseBaselineClient
+from rules.client import (
+	RuleLoadResult,
+	ValidationRuleClient,
+	ValidationRuleClientError,
+	built_in_rule_set,
+)
+from rules.registry import (
+	all_rule_specs,
+	apply_disabled_rules,
+	apply_rule_name_overrides,
+	default_incident_content_checks,
+)
 from svn_cli_log_auth import fetch_svn_log_with_auth
 from svn_commit_pack_input import build_packer_file_list_from_svn_log
 from svn_commit_validation import RevisionSpecError
@@ -158,7 +170,8 @@ def build_validation_config(payload: Mapping[str, object], svn_log_text: str) ->
 			"svn_auth_cache": _boolean(payload.get("use_auth_cache"), True),
 			"region_code": region,
 		}
-	if _boolean(payload.get("enable_skin_validation"), False):
+	skin_validation_enabled = _boolean(payload.get("enable_skin_validation"), False)
+	if skin_validation_enabled:
 		start = _string(payload.get("window_start"))
 		end = _string(payload.get("window_end"))
 		if not start or not end:
@@ -170,6 +183,31 @@ def build_validation_config(payload: Mapping[str, object], svn_log_text: str) ->
 		}
 		if tdr_root:
 			config["tdr_root"] = tdr_root
+	if "content_checks" not in config:
+		content_checks = default_incident_content_checks()
+		if skin_validation_enabled:
+			# 保持皮肤预检原有行为：注入 content_checks 后需显式携带 skin 规则，
+			# 否则 validation_mvp 会以 content_check_disabled 跳过。
+			content_checks = [{
+				"id": "skin-sale-window",
+				"type": "skin_sale_window",
+				"enabled": True,
+				"name": "英雄皮肤上下架与促销关联",
+				"dtxml_path": "/Xml/Garena/{region}/CommonCore/英雄皮肤促销表.dtxml",
+				"main_sheet": "svr下发皮肤上下架表",
+				"promotion_sheet": "svr下发皮肤促销特卖",
+				"trigger_paths": [
+					"/英雄皮肤促销表.dtxml",
+					"/Databin/Server/Shop/SvrHeroSkinShop.xml",
+					"/Databin/Server/Shop/SvrHeroSkinShop.bytes",
+				],
+			}, *content_checks]
+		config["content_checks"] = content_checks
+	# 叠加本地规则开关（后端默认、本地叠加）：设置页禁用的规则本次不执行
+	content_checks_value = config.get("content_checks")
+	if isinstance(content_checks_value, list):
+		content_checks_value = apply_disabled_rules(content_checks_value, payload.get("disabled_rule_ids"))
+		config["content_checks"] = apply_rule_name_overrides(content_checks_value, payload.get("rule_name_overrides"))
 	return config
 
 
@@ -209,6 +247,10 @@ class ElectronBridgeService:
 		merged = merge_settings(existing, settings_value)
 		save_local_settings(merged, self.settings_path)
 		return {"settings": renderer_settings(load_local_settings(self.settings_path))}
+
+	def command_list_validation_rules(self, _payload: Mapping[str, object], _emit: EventCallback) -> dict[str, object]:
+		"""设置页「内容校验规则」开关的数据源：返回注册表元数据。"""
+		return {"rules": all_rule_specs()}
 
 	def command_check_backend(self, payload: Mapping[str, object], _emit: EventCallback) -> dict[str, object]:
 		base_url = _string(payload.get("backend_url"))
@@ -301,6 +343,66 @@ class ElectronBridgeService:
 		except RevisionSpecError as error:
 			raise PackagingError(str(error)) from error
 
+	def _pull_validation_rules(
+		self,
+		settings: Mapping[str, object],
+		region: str,
+	) -> RuleLoadResult:
+		"""打包前拉取后端下发的校验规则：remote → local_cache → built_in 逐级回退。"""
+		client = ValidationRuleClient()
+		base_url = _string(settings.get("backend_url"))
+		token = _string(settings.get("backend_token")) or os.environ.get("AOV_BACKEND_TOKEN", "")
+		try:
+			if base_url:
+				return client.resolve(base_url=base_url, region_code=region, access_token=token)
+			cached = client.cache.load(region)
+			if cached is not None:
+				return RuleLoadResult(cached, "local_cache", "未配置 backend_url，使用本地缓存规则")
+			return RuleLoadResult(built_in_rule_set(region), "built_in", "未配置 backend_url，使用内置默认规则")
+		except ValidationRuleClientError as error:
+			return RuleLoadResult(built_in_rule_set(region), "built_in", str(error))
+
+	def _apply_rule_set(
+		self,
+		validation_config: dict[str, object],
+		rule_load: RuleLoadResult,
+		settings: Mapping[str, object],
+	) -> None:
+		"""把拉到的规则集写入 validation_config：规则内容覆盖默认，元数据进 report。
+
+		rule_set 元数据字段与 backend_archive_contract_v1 的校验要求对齐
+		（SAFE_ID_PATTERN、64 位 hex rule_hash、RFC3339 published_at、
+		source ∈ remote/local_cache/built_in），否则归档会失败。
+		"""
+		rule_set = rule_load.rule_set
+		rules = rule_set.get("rules")
+		if isinstance(rules, Mapping):
+			remote_checks = rules.get("content_checks")
+			if isinstance(remote_checks, list) and remote_checks:
+				# 后端下发的 content_checks 覆盖内置默认；本地开关/改名仍在其上叠加。
+				overlaid = apply_disabled_rules(remote_checks, settings.get("disabled_rule_ids"))
+				validation_config["content_checks"] = apply_rule_name_overrides(
+					overlaid, settings.get("rule_name_overrides")
+				)
+			commit_record = validation_config.get("commit_record")
+			if isinstance(commit_record, dict):
+				path_mappings = rules.get("path_mappings")
+				if isinstance(path_mappings, list) and path_mappings:
+					commit_record["path_mappings"] = [
+						dict(mapping) for mapping in path_mappings if isinstance(mapping, dict)
+					]
+				whitelist_paths = rules.get("whitelist_paths")
+				if isinstance(whitelist_paths, list) and whitelist_paths:
+					commit_record["whitelist_paths"] = [str(path) for path in whitelist_paths]
+		validation_config["rule_set"] = {
+			"rule_set_id": str(rule_set.get("rule_set_id") or "built-in"),
+			"version": str(rule_set.get("version") or "1"),
+			"rule_hash": str(rule_set.get("rule_hash") or "0" * 64),
+			"published_at": str(rule_set.get("published_at") or "1970-01-01T00:00:00Z"),
+			"region_code": str(rule_set.get("region_code") or validation_config.get("region_code") or "TW"),
+			"source": rule_load.source,
+		}
+
 	def command_pack(self, payload: Mapping[str, object], emit: EventCallback) -> dict[str, object]:
 		command_started = time.perf_counter()
 		command_stages: dict[str, float] = {}
@@ -317,6 +419,17 @@ class ElectronBridgeService:
 
 		def log(message: str, level: str = "info") -> None:
 			emit("log", {"message": message, "level": level})
+
+		rule_pull_started = time.perf_counter()
+		rule_load = self._pull_validation_rules(runtime_settings, str(validation_config.get("region_code") or "TW"))
+		command_stages["rule_pull"] = round(time.perf_counter() - rule_pull_started, 3)
+		if rule_load.source == "remote":
+			log(f"校验规则：已拉取后端规则集 {rule_load.rule_set.get('rule_set_id')} v{rule_load.rule_set.get('version')}。", "info")
+		elif rule_load.source == "local_cache":
+			log(f"校验规则：后端不可达，使用本地缓存规则集（{rule_load.message}）。", "warning")
+		else:
+			log(f"校验规则：使用内置默认规则集（{rule_load.message}）。", "info")
+		self._apply_rule_set(validation_config, rule_load, runtime_settings)
 
 		local_root = _string(merged.get("local_root"))
 		svn_target = _string(merged.get("svn_target")) or svn_target_for_region(_string(merged.get("region")))

@@ -4,7 +4,7 @@ import json
 import time
 from typing import Dict, Optional
 
-from changeset_modules import run_changeset_modules
+from changeset_modules import ModuleContext, run_changeset_modules
 from packer_core import LogCallback, PackResult, pack_incremental_package, parse_svn_entries
 from svn_dtxml_changeset import run_dtxml_changeset
 from validation_full_mvp_optimized import run_full_mvp_validations_optimized
@@ -24,6 +24,21 @@ def apply_optimized_validation_to_report(
 	log = log or (lambda _message, _level="info": None)
 	performance = result.report.setdefault("performance", {})
 	stages = performance.setdefault("stages", {}) if isinstance(performance, dict) else {}
+	log("正在生成 DTXML ChangeSet...", "info")
+	changeset_started = time.perf_counter()
+	change_set = run_dtxml_changeset(validation_config)
+	result.report["change_set"] = change_set
+	stages["dtxml_changeset"] = round(time.perf_counter() - changeset_started, 3)
+	changeset_changes = None
+	if change_set.get("status") in {"passed", "warning"} and isinstance(change_set.get("changes"), list):
+		changeset_changes = change_set["changes"]
+	else:
+		log("DTXML ChangeSet 不可用，提交内容级业务校验（规则 1/2）将跳过。", "warning")
+	# 校验与模块解读共享同一个 ModuleContext：活动关联索引只构建一次。
+	module_context = ModuleContext(
+		tdr_root=str(validation_config.get("tdr_root") or ""),
+		region_code=str(validation_config.get("region_code") or "TW"),
+	)
 	log("正在执行本地 MVP 校验...", "info")
 	validation_started = time.perf_counter()
 	fixed_paths = [entry.fixed_path for entry in parse_svn_entries(svn_text)]
@@ -31,17 +46,15 @@ def apply_optimized_validation_to_report(
 		fixed_paths=fixed_paths,
 		local_root=local_root,
 		validation_config=validation_config,
+		package_files=[entry for entry in result.report.get("files", []) if isinstance(entry, dict)],
+		changeset_changes=changeset_changes,
+		module_context=module_context,
 	)
 	result.report["validation"] = validation
 	stages["validation"] = round(time.perf_counter() - validation_started, 3)
-	log("正在生成 DTXML ChangeSet...", "info")
-	changeset_started = time.perf_counter()
-	change_set = run_dtxml_changeset(validation_config)
-	result.report["change_set"] = change_set
-	stages["dtxml_changeset"] = round(time.perf_counter() - changeset_started, 3)
 	log("正在执行 ChangeSet 业务模块解读...", "info")
 	module_started = time.perf_counter()
-	module_analysis = run_changeset_modules(change_set, validation_config)
+	module_analysis = run_changeset_modules(change_set, validation_config, context=module_context)
 	result.report["module_analysis"] = module_analysis
 	stages["module_analysis"] = round(time.perf_counter() - module_started, 3)
 	if isinstance(performance, dict):

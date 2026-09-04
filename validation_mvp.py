@@ -408,7 +408,7 @@ def run_skin_precheck(
 	}
 
 
-def run_mvp_validations(
+def _skin_precheck_result(
 	*,
 	fixed_paths: List[str],
 	local_root: str,
@@ -416,20 +416,10 @@ def run_mvp_validations(
 ) -> Dict[str, object]:
 	if not validation_config:
 		return {
-			"summary": {
-				"error_count": 0,
-				"warning_count": 0,
-				"confirm_count": 0,
-				"skipped_count": 1,
-			},
-			"checks": {
-				"skin_precheck": {
-					"status": "skipped",
-					"reason": "missing_validation_config",
-					"items": [],
-					"warnings": [],
-				}
-			},
+			"status": "skipped",
+			"reason": "missing_validation_config",
+			"items": [],
+			"warnings": [],
 		}
 
 	content_check: Optional[Dict[str, object]] = None
@@ -444,20 +434,10 @@ def run_mvp_validations(
 			), None)
 		if content_check is None:
 			return {
-				"summary": {
-					"error_count": 0,
-					"warning_count": 0,
-					"confirm_count": 0,
-					"skipped_count": 1,
-				},
-				"checks": {
-					"skin_precheck": {
-						"status": "skipped",
-						"reason": "content_check_disabled",
-						"items": [],
-						"warnings": [],
-					}
-				},
+				"status": "skipped",
+				"reason": "content_check_disabled",
+				"items": [],
+				"warnings": [],
 			}
 	check_window = validation_config.get("check_window") or {}
 	if not isinstance(check_window, dict):
@@ -466,23 +446,13 @@ def run_mvp_validations(
 	end = str(check_window.get("end_time", "")).strip()
 	if not start or not end:
 		return {
-			"summary": {
-				"error_count": 0,
-				"warning_count": 0,
-				"confirm_count": 0,
-				"skipped_count": 1,
-			},
-			"checks": {
-				"skin_precheck": {
-					"status": "skipped",
-					"reason": "missing_check_window",
-					"items": [],
-					"warnings": [],
-				}
-			},
+			"status": "skipped",
+			"reason": "missing_check_window",
+			"items": [],
+			"warnings": [],
 		}
 
-	skin_result = run_skin_precheck(
+	return run_skin_precheck(
 		fixed_paths=fixed_paths,
 		local_root=local_root,
 		check_window_start=start,
@@ -510,20 +480,67 @@ def run_mvp_validations(
 			else None
 		),
 	)
-	error_count = 1 if skin_result.get("status") == "error" else 0
-	warning_count = int(skin_result.get("warning_count", 0))
-	if skin_result.get("status") == "warning":
-		warning_count += 1
-	confirm_count = int(skin_result.get("item_count", 0))
-	skipped_count = 1 if skin_result.get("status") == "skipped" else 0
+
+
+def _summary_contribution(result: Dict[str, object]) -> Tuple[int, int, int, int]:
+	error = 1 if result.get("status") == "error" else 0
+	warning = int(result.get("warning_count", 0) or 0)
+	if result.get("status") == "warning":
+		warning += 1
+	confirm = int(result.get("item_count", 0) or 0)
+	skipped = 1 if result.get("status") == "skipped" else 0
+	return error, warning, confirm, skipped
+
+
+def run_mvp_validations(
+	*,
+	fixed_paths: List[str],
+	local_root: str,
+	validation_config: Optional[Dict[str, object]],
+	changeset_changes: Optional[List[Dict[str, object]]] = None,
+	module_context: Optional[object] = None,
+) -> Dict[str, object]:
+	from rules.registry import run_content_check, spec_for_type
+
+	checks: Dict[str, object] = {
+		"skin_precheck": _skin_precheck_result(
+			fixed_paths=fixed_paths,
+			local_root=local_root,
+			validation_config=validation_config,
+		),
+	}
+
+	if isinstance(validation_config, dict):
+		content_checks = validation_config.get("content_checks")
+		if isinstance(content_checks, list):
+			for check in content_checks:
+				if not isinstance(check, dict) or check.get("enabled") is not True:
+					continue
+				check_type = check.get("type")
+				spec = spec_for_type(check_type)
+				# 本层只调度 changeset 驱动的规则；包级规则在
+				# validation_full_mvp_optimized 中调度（需要 package_files）。
+				if spec is None or spec.get("scope") != "changeset":
+					continue
+				checks[str(check_type)] = run_content_check(
+					check,
+					fixed_paths=fixed_paths,
+					local_root=local_root,
+					validation_config=validation_config,
+					changeset_changes=changeset_changes,
+					module_context=module_context,
+				)
+
+	summary = {"error_count": 0, "warning_count": 0, "confirm_count": 0, "skipped_count": 0}
+	for result in checks.values():
+		if not isinstance(result, dict):
+			continue
+		error, warning, confirm, skipped = _summary_contribution(result)
+		summary["error_count"] += error
+		summary["warning_count"] += warning
+		summary["confirm_count"] += confirm
+		summary["skipped_count"] += skipped
 	return {
-		"summary": {
-			"error_count": error_count,
-			"warning_count": warning_count,
-			"confirm_count": confirm_count,
-			"skipped_count": skipped_count,
-		},
-		"checks": {
-			"skin_precheck": skin_result,
-		},
+		"summary": summary,
+		"checks": checks,
 	}

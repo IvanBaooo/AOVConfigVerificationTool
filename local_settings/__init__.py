@@ -39,6 +39,16 @@ BOOLEAN_FIELDS = (
 	"ftp_passive",
 )
 
+# 字符串列表字段（如设置页禁用的校验规则 id 列表）
+STRING_LIST_FIELDS = (
+	"disabled_rule_ids",
+)
+
+# 字符串字典字段（如规则自定义名 {规则id: 名称}）
+STRING_DICT_FIELDS = (
+	"rule_name_overrides",
+)
+
 
 FTP_PROFILE_REGIONS = frozenset({"TW", "TH", "VN", "ID"})
 FTP_PROFILE_STRING_FIELDS = (
@@ -99,6 +109,18 @@ def _sanitize_settings(settings: Mapping[str, Any]) -> dict[str, Any]:
 		value = settings.get(key)
 		if isinstance(value, bool):
 			sanitized[key] = value
+	for key in STRING_LIST_FIELDS:
+		value = settings.get(key)
+		if isinstance(value, (list, tuple)):
+			sanitized[key] = [str(item) for item in value if isinstance(item, (str, int))]
+	for key in STRING_DICT_FIELDS:
+		value = settings.get(key)
+		if isinstance(value, Mapping):
+			sanitized[key] = {
+				str(field_key): str(field_value).strip()
+				for field_key, field_value in value.items()
+				if isinstance(field_key, str) and isinstance(field_value, str) and field_value.strip()
+			}
 	if "ftp_profiles" in settings:
 		sanitized["ftp_profiles"] = _sanitize_ftp_profiles(settings.get("ftp_profiles"))
 	return sanitized

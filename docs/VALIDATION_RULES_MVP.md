@@ -33,7 +33,7 @@ Content-Type: application/json
 - 相同版本、相同内容：返回 `replayed`。
 - 相同版本、不同内容：返回 `409 rule_version_conflict`。
 
-初始示例见 `validation-rule-set.example.json`。
+初始示例见 `rules/example_rule_set.json`。
 
 ### 查询区域有效规则
 
@@ -67,10 +67,11 @@ GET /api/v1/validation-rules/latest?region_code=TW
 默认文件：
 
 ```text
-validation_rules.json
+rules/cached_rule_set.json
 ```
 
-位置与本地 `settings.json` 相同。测试时可以通过环境变量覆盖：
+规则集 schema 校验在 `rules/sets.py`，拉取/缓存客户端在 `rules/client.py`。
+缓存位置以本地 `settings.json` 所在目录为基准。测试时可以通过环境变量覆盖：
 
 ```text
 AOV_VALIDATION_RULE_CACHE
