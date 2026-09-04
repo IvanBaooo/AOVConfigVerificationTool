@@ -46,6 +46,21 @@ class LocalSettingsTests(unittest.TestCase):
 				"/Taiwan/Databin/Server/Actor/Hero_MD5*.txt",
 			)
 
+	def test_rule_switch_fields_round_trip(self) -> None:
+		with tempfile.TemporaryDirectory() as temp_dir:
+			settings_path = Path(temp_dir) / "settings.json"
+			save_local_settings(
+				{
+					"disabled_rule_ids": ["expiry-activity-cross-check", 123],
+					"rule_name_overrides": {"hidden-item-tab": "隐藏道具检查", "blank": "  "},
+				},
+				settings_path,
+			)
+			loaded = load_local_settings(settings_path)
+			self.assertEqual(loaded["disabled_rule_ids"], ["expiry-activity-cross-check", "123"])
+			# 空白的自定义名被过滤
+			self.assertEqual(loaded["rule_name_overrides"], {"hidden-item-tab": "隐藏道具检查"})
+
 	def test_missing_settings_file_returns_empty_settings(self) -> None:
 		with tempfile.TemporaryDirectory() as temp_dir:
 			settings_path = Path(temp_dir) / "missing.json"

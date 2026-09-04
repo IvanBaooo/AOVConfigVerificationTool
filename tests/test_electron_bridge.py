@@ -217,5 +217,64 @@ class ElectronBridgeSettingsTests(unittest.TestCase):
 		self.assertEqual(("output", "tests"), output_parent.parts[-2:])
 
 
+class ElectronBridgeContentRuleTests(unittest.TestCase):
+	def test_build_validation_config_injects_default_content_checks(self) -> None:
+		config = build_validation_config(
+			{"region": "TW", "input_method": "pasted_svn_file_list"},
+			"",
+		)
+
+		checks = config["content_checks"]
+		self.assertEqual(
+			["hidden-item-tab", "expiry-activity-cross-check", "skin-sale-change-check", "package-completeness-manual"],
+			[check["id"] for check in checks],
+		)
+		self.assertTrue(all(check["enabled"] for check in checks))
+
+	def test_skin_validation_keeps_skin_rule_first(self) -> None:
+		config = build_validation_config(
+			{
+				"region": "TW",
+				"enable_skin_validation": True,
+				"window_start": "20260701000000",
+				"window_end": "20260731235959",
+			},
+			"",
+		)
+
+		checks = config["content_checks"]
+		self.assertEqual("skin_sale_window", checks[0]["type"])
+		self.assertEqual("hidden-item-tab", checks[1]["id"])
+
+	def test_local_rule_switches_overlay_injected_defaults(self) -> None:
+		config = build_validation_config(
+			{
+				"region": "TW",
+				"input_method": "pasted_svn_file_list",
+				"disabled_rule_ids": ["hidden-item-tab"],
+				"rule_name_overrides": {"expiry-activity-cross-check": "有效期检查"},
+			},
+			"",
+		)
+
+		by_id = {check["id"]: check for check in config["content_checks"]}
+		self.assertIs(by_id["hidden-item-tab"]["enabled"], False)
+		self.assertIs(by_id["skin-sale-change-check"]["enabled"], True)
+		self.assertEqual("有效期检查", by_id["expiry-activity-cross-check"]["name"])
+
+	def test_list_validation_rules_returns_registry_metadata(self) -> None:
+		with tempfile.TemporaryDirectory() as temporary_directory:
+			service = ElectronBridgeService(Path(temporary_directory))
+
+			result = service.command_list_validation_rules({}, lambda _event, _data: None)
+
+		rules = result["rules"]
+		self.assertEqual(
+			["hidden-item-tab", "expiry-activity-cross-check", "skin-sale-change-check", "package-completeness-manual"],
+			[spec["id"] for spec in rules],
+		)
+		self.assertTrue(all("runner" not in spec for spec in rules))
+
+
 if __name__ == "__main__":
 	unittest.main()

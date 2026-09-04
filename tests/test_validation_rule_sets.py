@@ -3,7 +3,7 @@ from __future__ import annotations
 import copy
 import unittest
 
-from validation_rule_sets import (
+from rules.sets import (
 	ValidationRuleSetError,
 	effective_rule_set,
 	validate_effective_rule_set,
@@ -53,6 +53,80 @@ def sample_rule_set() -> dict[str, object]:
 
 
 class ValidationRuleSetTests(unittest.TestCase):
+	def test_incident_rule_types_and_extended_fields_are_accepted(self) -> None:
+		rule_set = sample_rule_set()
+		rule_set["common"]["content_checks"] = [
+			{
+				"id": "hidden-item-tab",
+				"type": "hidden_item_listing",
+				"enabled": True,
+				"name": "隐藏道具识别与单独标注",
+				"trigger_paths": ["/Databin/Server/Item/SvrItem.bytes"],
+				"severity": "warning",
+				"blocking": False,
+				"source_incident": "I7",
+				"verify": {"method": "manual"},
+			},
+			{
+				"id": "package-completeness-manual",
+				"type": "package_completeness",
+				"enabled": True,
+				"name": "输入清单与包内容一一对应",
+				"trigger_paths": ["*"],
+				"applies_to": "manual_bytes_list_only",
+				"params": {"min_file_count": 1, "min_total_bytes": 1024},
+			},
+		]
+
+		validated = validate_rule_set(rule_set)
+		checks = validated["common"]["content_checks"]
+
+		self.assertEqual("hidden_item_listing", checks[0]["type"])
+		self.assertEqual("warning", checks[0]["severity"])
+		self.assertFalse(checks[0]["blocking"])
+		self.assertEqual("I7", checks[0]["source_incident"])
+		self.assertEqual({"method": "manual"}, checks[0]["verify"])
+		self.assertNotIn("dtxml_path", checks[0])
+		self.assertEqual("manual_bytes_list_only", checks[1]["applies_to"])
+		self.assertEqual({"min_file_count": 1, "min_total_bytes": 1024}, checks[1]["params"])
+
+	def test_non_skin_check_type_with_dtxml_path_is_optional_but_validated(self) -> None:
+		rule_set = sample_rule_set()
+		rule_set["common"]["content_checks"] = [{
+			"id": "expiry-activity-cross-check",
+			"type": "expiry_time_cross_check",
+			"enabled": True,
+			"name": "道具有效期与活动时间关联校验",
+			"trigger_paths": ["/Databin/Server/Item/SvrItem.bytes"],
+			"dtxml_path": "/Xml/Garena/{region}/CommonCore/41.svr下发道具信息表.dtxml",
+		}]
+
+		validated = validate_rule_set(rule_set)
+
+		self.assertEqual(
+			"/Xml/Garena/{region}/CommonCore/41.svr下发道具信息表.dtxml",
+			validated["common"]["content_checks"][0]["dtxml_path"],
+		)
+
+	def test_unsupported_check_type_and_bad_severity_are_rejected(self) -> None:
+		for patch in (
+			{"type": "item_id_uniqueness"},
+			{"type": "hidden_item_listing", "severity": "fatal"},
+			{"type": "hidden_item_listing", "blocking": "yes"},
+		):
+			rule_set = sample_rule_set()
+			check = {
+				"id": "demo-check",
+				"type": "hidden_item_listing",
+				"enabled": True,
+				"name": "demo",
+				"trigger_paths": ["/x"],
+			}
+			check.update(patch)
+			rule_set["common"]["content_checks"] = [check]
+			with self.subTest(patch=patch), self.assertRaises(ValidationRuleSetError):
+				validate_rule_set(rule_set)
+
 	def test_region_mapping_overrides_common_and_whitelist_is_merged(self) -> None:
 		effective = effective_rule_set(sample_rule_set(), "tw")
 		rules = effective["rules"]

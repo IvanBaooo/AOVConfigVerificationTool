@@ -1,17 +1,20 @@
 from __future__ import annotations
 
 import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 from urllib.error import URLError
 
 from test_validation_rule_sets import sample_rule_set
-from validation_rule_client import (
+from rules.client import (
 	ValidationRuleCache,
 	ValidationRuleClient,
+	default_rule_cache_path,
 )
-from validation_rule_sets import effective_rule_set
+from rules.sets import effective_rule_set
 
 
 class FakeResponse:
@@ -87,6 +90,17 @@ class ValidationRuleClientTests(unittest.TestCase):
 
 			self.assertEqual("local_cache", result.source)
 			self.assertIn("hash verification", result.message)
+
+	def test_default_cache_path_lives_under_rules_dir(self) -> None:
+		with patch.dict(os.environ, {}, clear=True):
+			path = default_rule_cache_path()
+		self.assertEqual(("rules", "cached_rule_set.json"), path.parts[-2:])
+
+	def test_environment_override_controls_cache_path(self) -> None:
+		with tempfile.TemporaryDirectory() as temp_dir:
+			override = str(Path(temp_dir) / "custom_rules.json")
+			with patch.dict(os.environ, {"AOV_VALIDATION_RULE_CACHE": override}):
+				self.assertEqual(default_rule_cache_path(), Path(override))
 
 
 if __name__ == "__main__":

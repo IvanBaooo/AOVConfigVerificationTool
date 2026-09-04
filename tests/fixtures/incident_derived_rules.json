@@ -1,0 +1,118 @@
+{
+  "schema_version": "1.1-draft",
+  "rule_set_id": "aov-incident-derived",
+  "version": "2026.08.26.1",
+  "status": "proposal",
+  "published_at": "2026-08-26T19:56:00+08:00",
+  "notes": "道具校验规则（由历史配置问题复盘推导，2026-08-26 修订）。全局约定：所有校验不阻断打包流程，仅在校验环节爆红告警并写入报告 validation.summary；道具ID唯一性由服务器侧覆盖，本地不重复校验；时间一律按服务器时间比较，不做时区校验；包完整性校验仅适用于手动粘贴bytes list的打包场景。",
+  "global_policy": {
+    "blocking": false,
+    "on_failure": "alert_only",
+    "alert_channel": "validation_tab_red",
+    "report_fields": ["validation.summary.error_count", "validation.summary.warning_count", "validation.summary.confirm_count"],
+    "time_basis": "server_time",
+    "timezone_check": false
+  },
+  "common": {
+    "path_mappings": [],
+    "whitelist_paths": [],
+    "content_checks": [
+      {
+        "id": "hidden-item-tab",
+        "type": "hidden_item_listing",
+        "enabled": true,
+        "severity": "warning",
+        "blocking": false,
+        "name": "隐藏道具识别与单独标注",
+        "source_incident": "I7 2024-05-15 TH 橘右京ilua抽奖（隐形token过期时间误配为活动开始日，24万+玩家无法获得奖励）",
+        "trigger_paths": [
+          "/Xml/Garena/{region}/CommonCore/道具表.dtxml",
+          "/Databin/Server/Ilua/"
+        ],
+        "params": {
+          "hidden_item_rules": [
+            "道具行带隐藏/不可见标记（不在商城、背包展示位出现）",
+            "被ilua配置作为进度/计数依据引用，但本身不作为奖励发放"
+          ],
+          "display_tab": "隐藏道具",
+          "tab_columns": ["item_id", "name", "linked_activity", "expire_time"]
+        },
+        "verify": {
+          "inputs": ["本次变更涉及的全部道具行", "ilua 配置引用链"],
+          "pass_condition": "识别出的隐藏道具全部列入报告「隐藏道具」tab；tab 非空即产生一条爆红告警，提示与 QA 同步确认",
+          "fail_action": "爆红告警（不阻断），文案：本次配置含 N 个隐藏道具，请与 QA 同步确认"
+        }
+      },
+      {
+        "id": "expiry-activity-cross-check",
+        "type": "expiry_time_cross_check",
+        "enabled": true,
+        "severity": "warning",
+        "blocking": false,
+        "name": "道具有效期与活动时间关联校验",
+        "source_incident": "I7 2024-05-15 TH 橘右京ilua抽奖；适用范围从隐形token扩展到所有含有效期字段的道具",
+        "trigger_paths": [
+          "/Xml/Garena/{region}/CommonCore/道具表.dtxml",
+          "/Databin/Server/Shop/",
+          "/Databin/Server/Ilua/"
+        ],
+        "params": {
+          "expiry_column": "expire_time",
+          "activity_window_ref": "baselines.activity_windows",
+          "scope": "所有带有效期字段的道具行（含隐藏道具）",
+          "time_basis": "server_time"
+        },
+        "verify": {
+          "inputs": ["本次变更涉及道具行的 expire_time", "活动排期表（活动ID -> start_time/end_time）", "道具与活动的关联关系（ilua引用链/商城上架配置）"],
+          "pass_condition": "按序判定：1) expire_time 为空（不过期）→ 通过；2) expire_time 晚于关联活动 end_time → 通过；3) expire_time 等于或早于活动 start_time → 爆红告警；4) expire_time 落在活动期间内 → 爆红告警；5) 无法确定关联活动或活动结束时间缺失 → 告警转人工核对",
+          "fail_action": "爆红告警（不阻断），输出道具ID、当前 expire_time、关联活动ID及开始/结束时间、建议取值（活动结束之后或置空）"
+        }
+      },
+      {
+        "id": "package-completeness-manual",
+        "type": "package_completeness",
+        "enabled": true,
+        "severity": "warning",
+        "blocking": false,
+        "name": "输入清单与包内容一一对应（仅手动bytes list场景）",
+        "source_incident": "I2 2022-09-07 VN 凡恩觉醒bytes遗漏、I4 2022-11-04 TH 拉维尔空包；SVN提交模式已由commit_record差异校验覆盖，本规则仅限手动粘贴bytes list打包",
+        "applies_to": "manual_bytes_list_only",
+        "trigger_paths": ["*"],
+        "params": {
+          "min_file_count": 1,
+          "min_total_bytes": 1024,
+          "allow_skipped": false,
+          "allow_failed": false
+        },
+        "verify": {
+          "inputs": ["手动粘贴的 bytes 文件清单", "包内 files[].status 分布", "包总字节数"],
+          "pass_condition": "输入文件数 == packaged 数，且 failed_count == 0 且 skipped_count == 0；输入非空时 file_count >= min_file_count 且总字节数 >= min_total_bytes",
+          "fail_action": "爆红告警（不阻断），列出缺席文件路径；空包时提示疑似空包并要求核对打包路径配置"
+        }
+      }
+    ]
+  },
+  "regions": {
+    "TW": { "path_mappings": [], "whitelist_paths": [], "content_checks": [] },
+    "TH": { "path_mappings": [], "whitelist_paths": [], "content_checks": [] },
+    "VN": { "path_mappings": [], "whitelist_paths": [], "content_checks": [] },
+    "ID": { "path_mappings": [], "whitelist_paths": [], "content_checks": [] }
+  },
+  "baselines": {
+    "activity_windows": "活动排期表（活动ID -> start_time/end_time，服务器时间口径）"
+  },
+  "removed": [
+    {
+      "id": "item-id-uniqueness",
+      "reason": "服务器侧已加入相同校验，本地不重复（2026-08-26 确认）"
+    },
+    {
+      "id": "timezone-check",
+      "reason": "统一使用服务器时间，不做时区校验（2026-08-26 确认）"
+    },
+    {
+      "id": "package-completeness (svn mode)",
+      "reason": "SVN提交模式已由 commit_record 差异校验覆盖，仅保留手动bytes list场景（2026-08-26 确认）"
+    }
+  ]
+}
