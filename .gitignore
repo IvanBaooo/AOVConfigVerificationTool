@@ -38,6 +38,5 @@ dist/
 .DS_Store
 Thumbs.db
 
-# Local previews and handover notes
-hallmark-preview/
+# Local handover notes
 AOVAutoPacker_换机开发交接_*.md
