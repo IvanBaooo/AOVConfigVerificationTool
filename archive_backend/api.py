@@ -4,6 +4,7 @@ import hmac
 import json
 import re
 from dataclasses import dataclass, field
+from datetime import date
 from typing import Mapping
 from urllib.parse import parse_qs, unquote, urlsplit
 
@@ -32,8 +33,20 @@ ALLOWED_LIST_QUERY = frozenset(
 		"package_status",
 		"validation_status",
 		"record_state",
+		"received_from",
+		"received_to",
 	}
 )
+DATE_FILTER_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+
+def _parse_date_filter(value: str) -> str | None:
+	if not DATE_FILTER_PATTERN.fullmatch(value):
+		return None
+	try:
+		return date.fromisoformat(value).isoformat()
+	except ValueError:
+		return None
 
 
 @dataclass(frozen=True)
@@ -112,6 +125,11 @@ class ArchiveApplication:
 			if parsed.query:
 				return _error(400, "invalid_query", "Dashboard summary does not accept query parameters.")
 			return ApiResponse(200, self.repository.get_dashboard_summary(DASHBOARD_REGIONS))
+
+		if path == "/api/v1/dashboard-activity":
+			if method != "GET":
+				return _error(405, "method_not_allowed", "Only GET is allowed.")
+			return self._dashboard_activity(parsed.query)
 
 		if path == "/api/v1/validation-rule-sets":
 			if method != "POST":
@@ -258,6 +276,25 @@ class ArchiveApplication:
 			)
 		return ApiResponse(200, {"baseline": baseline})
 
+	def _dashboard_activity(self, query: str) -> ApiResponse:
+		parameters = parse_qs(query, keep_blank_values=True)
+		if set(parameters) - {"days", "region", "region_code"} or any(
+			len(values) != 1 for values in parameters.values()
+		):
+			return _error(400, "invalid_query", "The dashboard activity query contains unsupported parameters.")
+		try:
+			days = int(parameters.get("days", ["365"])[0])
+		except ValueError:
+			return _error(400, "invalid_query", "days must be an integer.")
+		if not 1 <= days <= 730:
+			return _error(400, "invalid_query", "days must be between 1 and 730.")
+		region_code = parameters.get("region_code", parameters.get("region", [None]))[0]
+		if region_code is not None:
+			region_code = region_code.strip().upper()
+			if region_code not in SUPPORTED_REGIONS:
+				return _error(400, "invalid_query", f"Unsupported region_code: {region_code}")
+		return ApiResponse(200, self.repository.activity_by_day(days, region_code))
+
 	def _create_archive(self, headers: Mapping[str, str], body: bytes) -> ApiResponse:
 		content_type = headers.get("content-type", "").split(";", 1)[0].strip().lower()
 		if content_type != "application/json":
@@ -332,6 +369,21 @@ class ArchiveApplication:
 		record_state = parameters.get("record_state", ["active"])[0]
 		if record_state not in {"active", "deleted", "all"}:
 			return _error(400, "invalid_query", "Invalid record_state filter.")
+		for key in ("received_from", "received_to"):
+			value = parameters.get(key, [None])[0]
+			if value is None:
+				filters[key] = None
+				continue
+			parsed_date = _parse_date_filter(value.strip())
+			if parsed_date is None:
+				return _error(400, "invalid_query", f"Invalid {key} filter; expected YYYY-MM-DD.")
+			filters[key] = parsed_date
+		if (
+			filters["received_from"] is not None
+			and filters["received_to"] is not None
+			and filters["received_from"] > filters["received_to"]
+		):
+			return _error(400, "invalid_query", "received_from must not be after received_to.")
 		result = self.repository.list_archives(
 			limit=limit,
 			offset=offset,

@@ -4,6 +4,7 @@ import copy
 import json
 import tempfile
 import unittest
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from archive_backend.api import ArchiveApplication
@@ -96,6 +97,78 @@ class ArchiveApplicationTests(unittest.TestCase):
 		)
 		self.assertEqual(response.body["regions"][0]["baseline"]["package_id"], payload["package_id"])
 		self.assertEqual(bad_query.status, 400)
+
+	def test_dashboard_activity_requires_auth_and_returns_days(self) -> None:
+		payload = self.payload()
+		self.request(
+			"POST",
+			"/api/v1/package-archives",
+			payload=payload,
+			headers=self.archive_headers(payload),
+		)
+
+		unauthorized = self.request("GET", "/api/v1/dashboard-activity", authorized=False)
+		default_response = self.request("GET", "/api/v1/dashboard-activity")
+		response = self.request("GET", "/api/v1/dashboard-activity?days=7")
+		region_filtered = self.request("GET", "/api/v1/dashboard-activity?days=7&region_code=tw")
+		region_alias = self.request("GET", "/api/v1/dashboard-activity?days=365&region=TW")
+		wrong_method = self.request("POST", "/api/v1/dashboard-activity")
+		bad_days = self.request("GET", "/api/v1/dashboard-activity?days=abc")
+		zero_days = self.request("GET", "/api/v1/dashboard-activity?days=0")
+		bad_region = self.request("GET", "/api/v1/dashboard-activity?region_code=XX")
+		bad_param = self.request("GET", "/api/v1/dashboard-activity?foo=1")
+
+		self.assertEqual(unauthorized.status, 401)
+		self.assertEqual(len(default_response.body["days"]), 365)
+		self.assertEqual(response.status, 200)
+		self.assertEqual(len(response.body["days"]), 7)
+		self.assertEqual(
+			set(response.body["days"][0]),
+			{"date", "archives", "warnings", "rule_publishes", "baseline_changes"},
+		)
+		self.assertEqual(response.body["days"][-1]["archives"], 1)
+		self.assertEqual(region_filtered.status, 200)
+		self.assertEqual(region_filtered.body["region_code"], "TW")
+		self.assertEqual(region_filtered.body["days"][-1]["archives"], 1)
+		self.assertEqual(region_alias.status, 200)
+		self.assertEqual(region_alias.body["region_code"], "TW")
+		self.assertEqual(len(region_alias.body["days"]), 365)
+		self.assertEqual(wrong_method.status, 405)
+		self.assertEqual(bad_days.status, 400)
+		self.assertEqual(zero_days.status, 400)
+		self.assertEqual(bad_region.status, 400)
+		self.assertEqual(bad_param.status, 400)
+
+	def test_list_archives_supports_received_date_filters(self) -> None:
+		payload = self.payload()
+		self.request(
+			"POST",
+			"/api/v1/package-archives",
+			payload=payload,
+			headers=self.archive_headers(payload),
+		)
+		today = datetime.now(timezone.utc).date()
+		tomorrow = (today + timedelta(days=1)).isoformat()
+
+		matched = self.request(
+			"GET",
+			f"/api/v1/package-archives?received_from={today.isoformat()}&received_to={today.isoformat()}",
+		)
+		empty = self.request("GET", f"/api/v1/package-archives?received_from={tomorrow}")
+		invalid = self.request("GET", "/api/v1/package-archives?received_from=2026-13-01")
+		malformed = self.request("GET", "/api/v1/package-archives?received_to=not-a-date")
+		inverted = self.request(
+			"GET",
+			f"/api/v1/package-archives?received_from={tomorrow}&received_to={today.isoformat()}",
+		)
+
+		self.assertEqual(matched.status, 200)
+		self.assertEqual(matched.body["total"], 1)
+		self.assertEqual(empty.status, 200)
+		self.assertEqual(empty.body["total"], 0)
+		self.assertEqual(invalid.status, 400)
+		self.assertEqual(malformed.status, 400)
+		self.assertEqual(inverted.status, 400)
 
 	def test_create_replay_list_and_get_archive(self) -> None:
 		payload = self.payload()
@@ -318,7 +391,10 @@ class ArchiveApplicationTests(unittest.TestCase):
 		)
 
 		local_path = self.payload()
-		local_path["validation"]["skin_precheck"].update(
+		skin_entry = next(
+			entry for entry in local_path["validation"]["checks"] if entry["type"] == "skin_precheck"
+		)
+		skin_entry.update(
 			{
 				"status": "confirm",
 				"item_count": 1,

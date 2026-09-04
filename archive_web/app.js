@@ -33,6 +33,7 @@ const state = {
   pendingManagement: null,
   audit: { offset: 0, total: 0, items: [], loading: false, loaded: false },
   dashboard: { loading: false, loaded: false },
+  activity: { loading: false, loaded: false, region: "" },
 };
 
 const elements = {
@@ -106,6 +107,13 @@ const elements = {
   dashboardRegionState: document.querySelector("#dashboard-region-state"),
   dashboardRecentRows: document.querySelector("#dashboard-recent-rows"),
   dashboardRecentState: document.querySelector("#dashboard-recent-state"),
+  heatmapGrid: document.querySelector("#heatmap-grid"),
+  heatmapMonths: document.querySelector("#heatmap-months"),
+  heatmapState: document.querySelector("#heatmap-state"),
+  heatmapRegionButtons: document.querySelectorAll(".heatmap-region-button"),
+  filterDateChip: document.querySelector("#filter-date-chip"),
+  filterDateChipText: document.querySelector("#filter-date-chip-text"),
+  filterDateChipClear: document.querySelector("#filter-date-chip-clear"),
 };
 
 class ApiError extends Error {
@@ -324,6 +332,13 @@ function renderList() {
   elements.summaryErrors.textContent = String(state.items.filter((item) => item.validation_status === "failed").length);
   elements.summaryRegion.textContent = state.filters.region_code || "全部";
 
+  const dateFrom = state.filters.received_from || "";
+  const dateTo = state.filters.received_to || "";
+  elements.filterDateChip.classList.toggle("hidden", !dateFrom && !dateTo);
+  elements.filterDateChipText.textContent = dateFrom === dateTo
+    ? `归档日期 ${dateFrom}`
+    : `归档日期 ${dateFrom || "…"} 至 ${dateTo || "…"}`;
+
   if (state.items.length === 0) {
     setTableState("没有符合当前筛选条件的归档记录");
   } else {
@@ -388,6 +403,106 @@ function renderDashboard(payload) {
   setDashboardState(elements.dashboardRecentState, recent.length ? "" : "尚无正常归档");
 }
 
+const HEATMAP_DAYS = 365;
+
+function toLocalIsoDate(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function heatmapLevel(count) {
+  if (count <= 0) return 0;
+  if (count === 1) return 1;
+  if (count <= 3) return 2;
+  if (count <= 6) return 3;
+  return 4;
+}
+
+function renderActivity(payload) {
+  const entries = new Map(
+    (Array.isArray(payload.days) ? payload.days : [])
+      .filter((day) => day && day.date)
+      .map((day) => [String(day.date), day]),
+  );
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const start = new Date(today);
+  start.setDate(start.getDate() - (HEATMAP_DAYS - 1));
+  const cursor = new Date(start);
+  cursor.setDate(cursor.getDate() - ((cursor.getDay() + 6) % 7));
+
+  const weeks = [];
+  while (cursor <= today) {
+    const week = [];
+    for (let day = 0; day < 7; day += 1) {
+      week.push(new Date(cursor));
+      cursor.setDate(cursor.getDate() + 1);
+    }
+    weeks.push(week);
+  }
+
+  let previousMonth = -1;
+  elements.heatmapMonths.innerHTML = weeks.map((week) => {
+    const month = week[0].getMonth();
+    const label = month === previousMonth ? "" : `${month + 1}月`;
+    previousMonth = month;
+    return `<span>${label}</span>`;
+  }).join("");
+
+  elements.heatmapGrid.innerHTML = weeks.map((week) => week.map((date) => {
+    if (date < start || date > today) {
+      return '<span class="heatmap-cell heatmap-cell-empty" aria-hidden="true"></span>';
+    }
+    const iso = toLocalIsoDate(date);
+    const entry = entries.get(iso) || {};
+    const archives = Number(entry.archives) || 0;
+    const warnings = Number(entry.warnings) || 0;
+    const rulePublishes = Number(entry.rule_publishes) || 0;
+    const baselineChanges = Number(entry.baseline_changes) || 0;
+    const tooltip = `${iso}：归档 ${archives} 次 · 告警 ${warnings} 条`
+      + (rulePublishes ? ` · 规则发布 ${rulePublishes} 次` : "")
+      + (baselineChanges ? ` · 基线变更 ${baselineChanges} 次` : "");
+    const classes = [
+      "heatmap-cell",
+      `heatmap-level-${heatmapLevel(archives)}`,
+      rulePublishes ? "heatmap-rule-day" : "",
+    ].filter(Boolean).join(" ");
+    return `<button class="${classes}" type="button" data-date="${iso}" title="${escapeHtml(tooltip)}" aria-label="${escapeHtml(tooltip)}，查看当天归档记录"></button>`;
+  }).join("")).join("");
+  setDashboardState(elements.heatmapState);
+}
+
+async function loadActivity() {
+  if (state.activity.loading) return;
+  state.activity.loading = true;
+  setDashboardState(elements.heatmapState, "正在读取更新热点");
+  try {
+    const parameters = new URLSearchParams({ days: String(HEATMAP_DAYS) });
+    if (state.activity.region) parameters.set("region_code", state.activity.region);
+    const payload = await apiRequest(`/api/v1/dashboard-activity?${parameters.toString()}`);
+    renderActivity(payload);
+    state.activity.loaded = true;
+  } catch (error) {
+    setDashboardNotice(error.message || "更新热点读取失败。", "error");
+    setDashboardState(elements.heatmapState, "更新热点加载失败");
+  } finally {
+    state.activity.loading = false;
+  }
+}
+
+function filterArchivesByDate(date) {
+  selectRegion(state.activity.region);
+  state.knownVersions.clear();
+  elements.filterVersion.replaceChildren(new Option("全部", ""));
+  elements.filterForm.reset();
+  state.filters = { ...readFilters(), received_from: date, received_to: date };
+  state.offset = 0;
+  showArchiveView();
+  loadArchives();
+}
+
 async function loadDashboard() {
   if (state.dashboard.loading) return;
   state.dashboard.loading = true;
@@ -405,6 +520,7 @@ async function loadDashboard() {
   } finally {
     state.dashboard.loading = false;
   }
+  loadActivity();
 }
 
 function showDashboardView() {
@@ -749,6 +865,26 @@ elements.filterRecordState.addEventListener("change", applyListFilters);
 elements.resetButton.addEventListener("click", () => {
   elements.filterForm.reset();
   applyListFilters();
+});
+
+elements.filterDateChipClear.addEventListener("click", applyListFilters);
+
+elements.heatmapGrid.addEventListener("click", (event) => {
+  const cell = event.target.closest("[data-date]");
+  if (cell) filterArchivesByDate(cell.dataset.date);
+});
+
+elements.heatmapRegionButtons.forEach((button) => {
+  button.addEventListener("click", () => {
+    if (state.activity.loading || button.classList.contains("active")) return;
+    elements.heatmapRegionButtons.forEach((item) => {
+      const selected = item === button;
+      item.classList.toggle("active", selected);
+      item.setAttribute("aria-pressed", String(selected));
+    });
+    state.activity.region = button.dataset.region || "";
+    loadActivity();
+  });
 });
 
 elements.refreshButton.addEventListener("click", async () => {

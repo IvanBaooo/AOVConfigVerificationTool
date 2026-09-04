@@ -455,6 +455,171 @@ main {
   font-size: 11px;
 }
 
+.heatmap-region-switch {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(44px, 1fr));
+  border: 1px solid #cbd3cd;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.heatmap-region-switch .region-button {
+  min-height: 30px;
+  padding: 4px 10px;
+  font-size: 11px;
+}
+
+.heatmap-frame {
+  margin-top: 14px;
+  padding: 18px 20px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+
+.heatmap-scroll {
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.heatmap-months {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 12px;
+  gap: 3px;
+  margin-bottom: 6px;
+  margin-left: 24px;
+}
+
+.heatmap-months span {
+  overflow: visible;
+  color: var(--muted);
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.heatmap-body {
+  display: flex;
+  gap: 6px;
+}
+
+.heatmap-weekdays {
+  display: grid;
+  grid-template-rows: repeat(7, 12px);
+  gap: 3px;
+  width: 18px;
+}
+
+.heatmap-weekdays span {
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 12px;
+}
+
+.heatmap-grid {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 12px;
+  grid-template-rows: repeat(7, 12px);
+  gap: 3px;
+}
+
+.heatmap-cell {
+  position: relative;
+  width: 12px;
+  height: 12px;
+  padding: 0;
+  background: var(--surface-soft);
+  border: 0;
+  border-radius: 3px;
+}
+
+button.heatmap-cell {
+  cursor: pointer;
+}
+
+button.heatmap-cell:hover,
+button.heatmap-cell:focus-visible {
+  outline: 1.5px solid var(--green);
+  outline-offset: 1px;
+}
+
+.heatmap-cell-empty {
+  background: transparent;
+}
+
+.heatmap-level-1 {
+  background: #c6e8da;
+}
+
+.heatmap-level-2 {
+  background: #8fd0b6;
+}
+
+.heatmap-level-3 {
+  background: var(--green-bright);
+}
+
+.heatmap-level-4 {
+  background: var(--green);
+}
+
+.heatmap-rule-day::after {
+  position: absolute;
+  inset: 3.5px;
+  background: var(--blue);
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px #ffffff;
+  content: "";
+}
+
+.heatmap-legend {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 12px;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.heatmap-legend-marker {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: 14px;
+}
+
+.heatmap-frame > .table-state {
+  margin: 10px 0 0;
+}
+
+.filter-date-chip {
+  display: inline-flex;
+  align-items: center;
+  align-self: center;
+  gap: 6px;
+  padding: 4px 6px 4px 12px;
+  color: var(--blue);
+  background: var(--blue-soft);
+  border-radius: 999px;
+  font-size: 11px;
+}
+
+.filter-date-chip button {
+  padding: 0 6px;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.filter-date-chip button:hover {
+  background: rgba(40, 94, 142, 0.14);
+}
+
 .region-bar {
   display: flex;
   align-items: center;

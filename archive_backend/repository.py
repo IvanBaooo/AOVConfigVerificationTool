@@ -5,7 +5,7 @@ import json
 import sqlite3
 from contextlib import contextmanager
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -651,6 +651,8 @@ class ArchiveRepository:
 		package_status: str | None = None,
 		validation_status: str | None = None,
 		record_state: str = "active",
+		received_from: str | None = None,
+		received_to: str | None = None,
 	) -> dict[str, object]:
 		filters = {
 			"region_code": region_code,
@@ -670,6 +672,12 @@ class ArchiveRepository:
 			if value is not None:
 				clauses.append(f"{column} = ?")
 				parameters.append(value)
+		if received_from is not None:
+			clauses.append("date(received_at) >= ?")
+			parameters.append(received_from)
+		if received_to is not None:
+			clauses.append("date(received_at) <= ?")
+			parameters.append(received_to)
 		where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
 
 		with self._open_connection() as connection:
@@ -761,6 +769,78 @@ class ArchiveRepository:
 			},
 			"regions": regions,
 			"recent_archives": recent,
+		}
+
+	def activity_by_day(self, days: int, region_code: str | None = None) -> dict[str, object]:
+		if days < 1:
+			raise ValueError("days must be positive")
+		today = datetime.now(timezone.utc).date()
+		start = today - timedelta(days=days - 1)
+		archive_clauses = ["date(received_at) >= ?"]
+		archive_parameters: list[object] = [start.isoformat()]
+		audit_clauses = ["audit.action = 'baseline_set'", "date(audit.created_at) >= ?"]
+		audit_parameters: list[object] = [start.isoformat()]
+		if region_code is not None:
+			archive_clauses.append("region_code = ?")
+			archive_parameters.append(region_code)
+			audit_clauses.append("archives.region_code = ?")
+			audit_parameters.append(region_code)
+		with self._open_connection() as connection:
+			archive_rows = connection.execute(
+				f"""
+				SELECT
+					date(received_at) AS day,
+					COUNT(*) AS archives,
+					SUM(warning_count) AS warnings
+				FROM package_archives
+				WHERE {' AND '.join(archive_clauses)}
+				GROUP BY day
+				""",
+				archive_parameters,
+			).fetchall()
+			rule_rows = connection.execute(
+				"""
+				SELECT date(published_at) AS day, COUNT(*) AS rule_publishes
+				FROM validation_rule_sets
+				WHERE date(published_at) >= ?
+				GROUP BY day
+				""",
+				(start.isoformat(),),
+			).fetchall()
+			audit_rows = connection.execute(
+				f"""
+				SELECT date(audit.created_at) AS day, COUNT(*) AS baseline_changes
+				FROM archive_admin_audit AS audit
+				JOIN package_archives AS archives ON archives.package_id = audit.package_id
+				WHERE {' AND '.join(audit_clauses)}
+				GROUP BY day
+				""",
+				audit_parameters,
+			).fetchall()
+		activity: dict[str, dict[str, object]] = {}
+		for row in archive_rows:
+			entry = activity.setdefault(row["day"], {})
+			entry["archives"] = int(row["archives"])
+			entry["warnings"] = int(row["warnings"] or 0)
+		for row in rule_rows:
+			activity.setdefault(row["day"], {})["rule_publishes"] = int(row["rule_publishes"])
+		for row in audit_rows:
+			activity.setdefault(row["day"], {})["baseline_changes"] = int(row["baseline_changes"])
+		result_days: list[dict[str, object]] = []
+		for index in range(days):
+			day = (start + timedelta(days=index)).isoformat()
+			entry = activity.get(day, {})
+			result_days.append({
+				"date": day,
+				"archives": int(entry.get("archives") or 0),
+				"warnings": int(entry.get("warnings") or 0),
+				"rule_publishes": int(entry.get("rule_publishes") or 0),
+				"baseline_changes": int(entry.get("baseline_changes") or 0),
+			})
+		return {
+			"generated_at": _utc_now(),
+			"region_code": region_code,
+			"days": result_days,
 		}
 	def publish_rule_set(self, rule_set: Mapping[str, Any]) -> PublishRuleSetResult:
 		normalized, payload_json, payload_sha256 = _canonical_payload(rule_set)

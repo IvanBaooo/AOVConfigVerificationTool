@@ -80,6 +80,44 @@
         <div class="notice hidden dashboard-notice" id="dashboard-notice" role="status"></div>
 
         <section class="dashboard-workspace" aria-label="Dashboard工作区">
+          <section class="dashboard-section" aria-labelledby="dashboard-heatmap-title">
+            <div class="section-heading dashboard-section-heading">
+              <div>
+                <h2 id="dashboard-heatmap-title">更新热点</h2>
+                <p>最近一年的归档活跃度，颜色越深归档越多；点击格子按当天查看归档记录</p>
+              </div>
+              <div class="heatmap-region-switch" id="heatmap-region-switch" role="group" aria-label="热点图区域">
+                <button class="region-button heatmap-region-button active" type="button" data-region="" aria-pressed="true">全部</button>
+                <button class="region-button heatmap-region-button" type="button" data-region="TW" aria-pressed="false">TW</button>
+                <button class="region-button heatmap-region-button" type="button" data-region="TH" aria-pressed="false">TH</button>
+                <button class="region-button heatmap-region-button" type="button" data-region="VN" aria-pressed="false">VN</button>
+                <button class="region-button heatmap-region-button" type="button" data-region="ID" aria-pressed="false">ID</button>
+              </div>
+            </div>
+            <div class="heatmap-frame">
+              <div class="heatmap-scroll">
+                <div class="heatmap-months" id="heatmap-months" aria-hidden="true"></div>
+                <div class="heatmap-body">
+                  <div class="heatmap-weekdays" aria-hidden="true">
+                    <span>一</span><span></span><span>三</span><span></span><span>五</span><span></span><span></span>
+                  </div>
+                  <div class="heatmap-grid" id="heatmap-grid"></div>
+                </div>
+              </div>
+              <div class="heatmap-legend" aria-hidden="true">
+                <span>少</span>
+                <span class="heatmap-cell heatmap-level-0"></span>
+                <span class="heatmap-cell heatmap-level-1"></span>
+                <span class="heatmap-cell heatmap-level-2"></span>
+                <span class="heatmap-cell heatmap-level-3"></span>
+                <span class="heatmap-cell heatmap-level-4"></span>
+                <span>多</span>
+                <span class="heatmap-legend-marker"><span class="heatmap-cell heatmap-level-0 heatmap-rule-day"></span>规则发布日</span>
+              </div>
+              <div class="table-state" id="heatmap-state">正在读取更新热点</div>
+            </div>
+          </section>
+
           <section class="dashboard-section" aria-labelledby="dashboard-regions-title">
             <div class="section-heading dashboard-section-heading">
               <div>
@@ -158,6 +196,10 @@
               <h2>归档列表</h2>
               <p id="result-caption">等待加载</p>
             </div>
+            <span class="filter-date-chip hidden" id="filter-date-chip">
+              <span id="filter-date-chip-text"></span>
+              <button type="button" id="filter-date-chip-clear" aria-label="清除日期筛选" title="清除日期筛选">×</button>
+            </span>
             <button class="button button-quiet" id="reset-button" type="button">清除筛选</button>
           </div>
 
