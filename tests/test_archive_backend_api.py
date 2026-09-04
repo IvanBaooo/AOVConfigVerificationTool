@@ -139,6 +139,49 @@ class ArchiveApplicationTests(unittest.TestCase):
 		self.assertEqual(bad_region.status, 400)
 		self.assertEqual(bad_param.status, 400)
 
+	def test_dashboard_rule_stats_requires_auth_and_validates_params(self) -> None:
+		payload = self.payload()
+		checks = {entry["type"]: entry for entry in payload["validation"]["checks"]}
+		checks["hidden_item_listing"].update({"status": "warning", "warning_count": 2})
+		self.request(
+			"POST",
+			"/api/v1/package-archives",
+			payload=payload,
+			headers=self.archive_headers(payload),
+		)
+
+		unauthorized = self.request("GET", "/api/v1/dashboard-rule-stats", authorized=False)
+		default_response = self.request("GET", "/api/v1/dashboard-rule-stats")
+		ranged = self.request("GET", "/api/v1/dashboard-rule-stats?days=30")
+		region_filtered = self.request("GET", "/api/v1/dashboard-rule-stats?days=90&region_code=tw")
+		wrong_method = self.request("POST", "/api/v1/dashboard-rule-stats")
+		bad_days = self.request("GET", "/api/v1/dashboard-rule-stats?days=abc")
+		zero_days = self.request("GET", "/api/v1/dashboard-rule-stats?days=0")
+		too_many_days = self.request("GET", "/api/v1/dashboard-rule-stats?days=731")
+		bad_region = self.request("GET", "/api/v1/dashboard-rule-stats?region_code=XX")
+		bad_param = self.request("GET", "/api/v1/dashboard-rule-stats?foo=1")
+
+		self.assertEqual(unauthorized.status, 401)
+		self.assertEqual(default_response.status, 200)
+		self.assertIsNone(default_response.body["days"])
+		self.assertEqual(default_response.body["covered_archives"], 1)
+		self.assertEqual(default_response.body["skipped_legacy"], 0)
+		self.assertEqual(default_response.body["whitelist_exemptions"], 1)
+		self.assertEqual(default_response.body["rules"][0]["type"], "hidden_item_listing")
+		self.assertEqual(default_response.body["rules"][0]["triggered_archives"], 1)
+		self.assertEqual(default_response.body["tables"][0]["table"], "道具信息表")
+		self.assertEqual(ranged.status, 200)
+		self.assertEqual(ranged.body["days"], 30)
+		self.assertEqual(region_filtered.status, 200)
+		self.assertEqual(region_filtered.body["region_code"], "TW")
+		self.assertEqual(region_filtered.body["covered_archives"], 1)
+		self.assertEqual(wrong_method.status, 405)
+		self.assertEqual(bad_days.status, 400)
+		self.assertEqual(zero_days.status, 400)
+		self.assertEqual(too_many_days.status, 400)
+		self.assertEqual(bad_region.status, 400)
+		self.assertEqual(bad_param.status, 400)
+
 	def test_list_archives_supports_received_date_filters(self) -> None:
 		payload = self.payload()
 		self.request(

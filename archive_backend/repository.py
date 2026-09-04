@@ -842,6 +842,130 @@ class ArchiveRepository:
 			"region_code": region_code,
 			"days": result_days,
 		}
+
+	def rule_trigger_stats(
+		self,
+		days: int | None = None,
+		region_code: str | None = None,
+	) -> dict[str, object]:
+		if days is not None and days < 1:
+			raise ValueError("days must be positive")
+		clauses: list[str] = []
+		parameters: list[object] = []
+		if days is not None:
+			start = datetime.now(timezone.utc).date() - timedelta(days=days - 1)
+			clauses.append("date(received_at) >= ?")
+			parameters.append(start.isoformat())
+		if region_code is not None:
+			clauses.append("region_code = ?")
+			parameters.append(region_code)
+		where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
+		with self._open_connection() as connection:
+			rows = connection.execute(
+				f"SELECT payload_json FROM package_archives{where}",
+				parameters,
+			).fetchall()
+
+		triggered_statuses = {"warning", "error", "confirm"}
+		rule_stats: dict[tuple[str, str], dict[str, object]] = {}
+		table_stats: dict[str, int] = {}
+		covered_archives = 0
+		skipped_legacy = 0
+		whitelist_exemptions = 0
+		for row in rows:
+			payload = json.loads(row["payload_json"])
+			validation = payload.get("validation")
+			if not isinstance(validation, dict):
+				skipped_legacy += 1
+				continue
+			checks = validation.get("checks")
+			if not isinstance(checks, list):
+				skipped_legacy += 1
+				continue
+			covered_archives += 1
+			commit_record = validation.get("commit_record")
+			if isinstance(commit_record, dict):
+				whitelisted = commit_record.get("whitelisted_paths")
+				if isinstance(whitelisted, list):
+					whitelist_exemptions += len(whitelisted)
+			acknowledged: dict[str, int] = {}
+			acknowledgments = validation.get("acknowledgments")
+			if isinstance(acknowledgments, list):
+				for acknowledgment in acknowledgments:
+					if not isinstance(acknowledgment, dict):
+						continue
+					ack_type = str(acknowledgment.get("type") or "")
+					if ack_type:
+						acknowledged[ack_type] = acknowledged.get(ack_type, 0) + 1
+			triggered_in_archive: dict[tuple[str, str], dict[str, int]] = {}
+			for check in checks:
+				if not isinstance(check, dict):
+					continue
+				status = check.get("status")
+				check_type = str(check.get("type") or "")
+				name = str(check.get("name") or check_type)
+				warning_count = check.get("warning_count")
+				item_count = check.get("item_count")
+				warning_count = warning_count if type(warning_count) is int and warning_count > 0 else 0
+				item_count = item_count if type(item_count) is int and item_count > 0 else 0
+				if status not in triggered_statuses:
+					continue
+				key = (check_type, name)
+				entry = triggered_in_archive.setdefault(
+					key, {"warnings": 0, "confirms": 0, "errors": 0}
+				)
+				entry["warnings"] += warning_count
+				if status == "confirm":
+					entry["confirms"] += item_count
+				if status == "error":
+					entry["errors"] += 1
+				tables = check.get("tables")
+				if isinstance(tables, list):
+					weight = warning_count + item_count
+					for table in tables:
+						if isinstance(table, str) and table:
+							table_stats[table] = table_stats.get(table, 0) + weight
+			for key, entry in triggered_in_archive.items():
+				stats = rule_stats.setdefault(
+					key,
+					{
+						"type": key[0],
+						"name": key[1],
+						"triggered_archives": 0,
+						"warning_count": 0,
+						"confirm_count": 0,
+						"error_archives": 0,
+						"acknowledged_count": 0,
+					},
+				)
+				stats["triggered_archives"] += 1
+				stats["warning_count"] += entry["warnings"]
+				stats["confirm_count"] += entry["confirms"]
+				stats["error_archives"] += entry["errors"]
+				stats["acknowledged_count"] += acknowledged.get(key[0], 0)
+
+		rules = sorted(
+			rule_stats.values(),
+			key=lambda item: (-int(item["triggered_archives"]), str(item["name"]), str(item["type"])),
+		)
+		tables = sorted(
+			(
+				{"table": table, "problem_count": count}
+				for table, count in table_stats.items()
+			),
+			key=lambda item: (-int(item["problem_count"]), str(item["table"])),
+		)
+		return {
+			"generated_at": _utc_now(),
+			"days": days,
+			"region_code": region_code,
+			"covered_archives": covered_archives,
+			"skipped_legacy": skipped_legacy,
+			"whitelist_exemptions": whitelist_exemptions,
+			"rules": rules,
+			"tables": tables,
+		}
+
 	def publish_rule_set(self, rule_set: Mapping[str, Any]) -> PublishRuleSetResult:
 		normalized, payload_json, payload_sha256 = _canonical_payload(rule_set)
 		rule_set_id = str(normalized["rule_set_id"])

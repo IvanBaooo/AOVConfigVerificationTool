@@ -131,6 +131,11 @@ class ArchiveApplication:
 				return _error(405, "method_not_allowed", "Only GET is allowed.")
 			return self._dashboard_activity(parsed.query)
 
+		if path == "/api/v1/dashboard-rule-stats":
+			if method != "GET":
+				return _error(405, "method_not_allowed", "Only GET is allowed.")
+			return self._dashboard_rule_stats(parsed.query)
+
 		if path == "/api/v1/validation-rule-sets":
 			if method != "POST":
 				return _error(405, "method_not_allowed", "Only GET and POST are allowed.")
@@ -294,6 +299,27 @@ class ArchiveApplication:
 			if region_code not in SUPPORTED_REGIONS:
 				return _error(400, "invalid_query", f"Unsupported region_code: {region_code}")
 		return ApiResponse(200, self.repository.activity_by_day(days, region_code))
+
+	def _dashboard_rule_stats(self, query: str) -> ApiResponse:
+		parameters = parse_qs(query, keep_blank_values=True)
+		if set(parameters) - {"days", "region_code"} or any(
+			len(values) != 1 for values in parameters.values()
+		):
+			return _error(400, "invalid_query", "The dashboard rule stats query contains unsupported parameters.")
+		days: int | None = None
+		if "days" in parameters:
+			try:
+				days = int(parameters["days"][0])
+			except ValueError:
+				return _error(400, "invalid_query", "days must be an integer.")
+			if not 1 <= days <= 730:
+				return _error(400, "invalid_query", "days must be between 1 and 730.")
+		region_code = parameters.get("region_code", [None])[0]
+		if region_code is not None:
+			region_code = region_code.strip().upper()
+			if region_code not in SUPPORTED_REGIONS:
+				return _error(400, "invalid_query", f"Unsupported region_code: {region_code}")
+		return ApiResponse(200, self.repository.rule_trigger_stats(days, region_code))
 
 	def _create_archive(self, headers: Mapping[str, str], body: bytes) -> ApiResponse:
 		content_type = headers.get("content-type", "").split(";", 1)[0].strip().lower()

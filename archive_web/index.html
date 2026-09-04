@@ -121,10 +121,49 @@
             </div>
           </section>
 
-          <section class="dashboard-section" aria-labelledby="dashboard-regions-title">
+          <section class="dashboard-section" aria-labelledby="dashboard-rule-stats-title">
             <div class="section-heading dashboard-section-heading">
               <div>
                 <span class="section-number">02</span>
+                <div>
+                  <h2 id="dashboard-rule-stats-title">规则告警统计</h2>
+                  <p>按校验规则聚合触发归档与告警量，区域跟随上方热点图；白名单豁免为提交记录中被白名单跳过的告警路径数</p>
+                </div>
+              </div>
+              <div class="rule-stats-range-switch" id="rule-stats-range-switch" role="group" aria-label="统计时间范围">
+                <button class="region-button rule-stats-range-button active" type="button" data-days="" aria-pressed="true">全部</button>
+                <button class="region-button rule-stats-range-button" type="button" data-days="90" aria-pressed="false">近90天</button>
+                <button class="region-button rule-stats-range-button" type="button" data-days="30" aria-pressed="false">近30天</button>
+              </div>
+            </div>
+            <div class="rule-stats-frame">
+              <div class="rule-stats-meta">
+                <span>覆盖归档 <strong id="rule-stats-covered">--</strong></span>
+                <span>旧版跳过 <strong id="rule-stats-legacy">--</strong></span>
+                <span>白名单豁免 <strong id="rule-stats-whitelist">--</strong></span>
+              </div>
+              <div class="rule-stats-legend" aria-hidden="true">
+                <span><i class="rule-stats-swatch rule-stats-swatch-warning"></i>告警</span>
+                <span><i class="rule-stats-swatch rule-stats-swatch-confirm"></i>待确认</span>
+              </div>
+              <div class="rule-stats-boards">
+                <section class="rule-stats-board" aria-labelledby="rule-stats-rules-title">
+                  <h3 id="rule-stats-rules-title">规则触发排行</h3>
+                  <div class="rule-stats-list" id="rule-stats-rules"></div>
+                </section>
+                <section class="rule-stats-board" aria-labelledby="rule-stats-tables-title">
+                  <h3 id="rule-stats-tables-title">问题表排行</h3>
+                  <div class="rule-stats-list" id="rule-stats-tables"></div>
+                </section>
+              </div>
+              <div class="table-state" id="rule-stats-state">正在读取规则告警统计</div>
+            </div>
+          </section>
+
+          <section class="dashboard-section" aria-labelledby="dashboard-regions-title">
+            <div class="section-heading dashboard-section-heading">
+              <div>
+                <span class="section-number">03</span>
                 <div>
                   <h2 id="dashboard-regions-title">区域基线</h2>
                   <p>本地打包工具读取的上次对外版本</p>
@@ -145,7 +184,7 @@
           <section class="dashboard-section" aria-labelledby="dashboard-recent-title">
             <div class="section-heading dashboard-section-heading">
               <div>
-                <span class="section-number">03</span>
+                <span class="section-number">04</span>
                 <div>
                   <h2 id="dashboard-recent-title">最近归档</h2>
                   <p>最近确认归档的正常记录</p>

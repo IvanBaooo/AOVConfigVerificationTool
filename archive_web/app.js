@@ -34,6 +34,7 @@ const state = {
   audit: { offset: 0, total: 0, items: [], loading: false, loaded: false },
   dashboard: { loading: false, loaded: false },
   activity: { loading: false, loaded: false, region: "" },
+  ruleStats: { loading: false, loaded: false, days: null },
 };
 
 const elements = {
@@ -111,6 +112,13 @@ const elements = {
   heatmapMonths: document.querySelector("#heatmap-months"),
   heatmapState: document.querySelector("#heatmap-state"),
   heatmapRegionButtons: document.querySelectorAll(".heatmap-region-button"),
+  ruleStatsRangeButtons: document.querySelectorAll(".rule-stats-range-button"),
+  ruleStatsCovered: document.querySelector("#rule-stats-covered"),
+  ruleStatsLegacy: document.querySelector("#rule-stats-legacy"),
+  ruleStatsWhitelist: document.querySelector("#rule-stats-whitelist"),
+  ruleStatsRules: document.querySelector("#rule-stats-rules"),
+  ruleStatsTables: document.querySelector("#rule-stats-tables"),
+  ruleStatsState: document.querySelector("#rule-stats-state"),
   filterDateChip: document.querySelector("#filter-date-chip"),
   filterDateChipText: document.querySelector("#filter-date-chip-text"),
   filterDateChipClear: document.querySelector("#filter-date-chip-clear"),
@@ -492,6 +500,94 @@ async function loadActivity() {
   }
 }
 
+function renderRuleStats(payload) {
+  const rules = Array.isArray(payload.rules) ? payload.rules : [];
+  const tables = Array.isArray(payload.tables) ? payload.tables : [];
+  const covered = Number(payload.covered_archives) || 0;
+  const legacy = Number(payload.skipped_legacy) || 0;
+  elements.ruleStatsCovered.textContent = String(covered);
+  elements.ruleStatsLegacy.textContent = String(legacy);
+  elements.ruleStatsWhitelist.textContent = String(Number(payload.whitelist_exemptions) || 0);
+
+  const ruleMax = Math.max(1, ...rules.map((rule) => (Number(rule.warning_count) || 0) + (Number(rule.confirm_count) || 0)));
+  elements.ruleStatsRules.innerHTML = rules.map((rule) => {
+    const warnings = Number(rule.warning_count) || 0;
+    const confirms = Number(rule.confirm_count) || 0;
+    const errors = Number(rule.error_archives) || 0;
+    const acknowledged = Number(rule.acknowledged_count) || 0;
+    const warningWidth = (warnings / ruleMax) * 100;
+    const confirmWidth = (confirms / ruleMax) * 100;
+    return `
+      <div class="rule-bar-row">
+        <div class="rule-bar-head">
+          <span class="rule-bar-name" title="${escapeHtml(rule.type)}">${escapeHtml(rule.name)}</span>
+          <span class="rule-bar-count">${escapeHtml(rule.triggered_archives)} 归档触发</span>
+        </div>
+        <div class="rule-bar-track" role="img" aria-label="告警 ${warnings} 条，待确认 ${confirms} 条">
+          ${warnings ? `<span class="rule-bar-seg rule-bar-seg-warning" style="width:${warningWidth}%"></span>` : ""}
+          ${confirms ? `<span class="rule-bar-seg rule-bar-seg-confirm" style="width:${confirmWidth}%"></span>` : ""}
+        </div>
+        <div class="rule-bar-foot">
+          <span class="rule-bar-stat rule-bar-stat-warning">告警 ${warnings}</span>
+          <span class="rule-bar-stat rule-bar-stat-confirm">待确认 ${confirms}</span>
+          ${acknowledged ? `<span class="rule-bar-stat rule-bar-stat-acked">已确认 ${acknowledged}</span>` : ""}
+          ${errors ? `<span class="rule-bar-stat rule-bar-stat-error">错误归档 ${errors}</span>` : ""}
+        </div>
+      </div>
+    `;
+  }).join("");
+
+  const tableMax = Math.max(1, ...tables.map((table) => Number(table.problem_count) || 0));
+  elements.ruleStatsTables.innerHTML = tables.map((table) => {
+    const count = Number(table.problem_count) || 0;
+    const width = (count / tableMax) * 100;
+    return `
+      <div class="rule-bar-row">
+        <div class="rule-bar-head">
+          <span class="rule-bar-name">${escapeHtml(table.table)}</span>
+          <span class="rule-bar-count">${count} 问题</span>
+        </div>
+        <div class="rule-bar-track" role="img" aria-label="问题 ${count} 条">
+          ${count ? `<span class="rule-bar-seg rule-bar-seg-warning" style="width:${width}%"></span>` : ""}
+        </div>
+      </div>
+    `;
+  }).join("");
+
+  if (covered === 0) {
+    setDashboardState(
+      elements.ruleStatsState,
+      legacy > 0
+        ? `当前范围内的 ${legacy} 条归档均为旧版记录，不含规则校验明细，暂无法统计`
+        : "当前范围内没有归档记录，暂无规则告警统计",
+    );
+  } else if (rules.length === 0 && tables.length === 0) {
+    setDashboardState(elements.ruleStatsState, "当前范围内没有触发告警或待确认的规则");
+  } else {
+    setDashboardState(elements.ruleStatsState);
+  }
+}
+
+async function loadRuleStats() {
+  if (state.ruleStats.loading) return;
+  state.ruleStats.loading = true;
+  setDashboardState(elements.ruleStatsState, "正在读取规则告警统计");
+  try {
+    const parameters = new URLSearchParams();
+    if (state.ruleStats.days !== null) parameters.set("days", String(state.ruleStats.days));
+    if (state.activity.region) parameters.set("region_code", state.activity.region);
+    const query = parameters.toString();
+    const payload = await apiRequest(`/api/v1/dashboard-rule-stats${query ? `?${query}` : ""}`);
+    renderRuleStats(payload);
+    state.ruleStats.loaded = true;
+  } catch (error) {
+    setDashboardNotice(error.message || "规则告警统计读取失败。", "error");
+    setDashboardState(elements.ruleStatsState, "规则告警统计加载失败");
+  } finally {
+    state.ruleStats.loading = false;
+  }
+}
+
 function filterArchivesByDate(date) {
   selectRegion(state.activity.region);
   state.knownVersions.clear();
@@ -521,6 +617,7 @@ async function loadDashboard() {
     state.dashboard.loading = false;
   }
   loadActivity();
+  loadRuleStats();
 }
 
 function showDashboardView() {
@@ -884,6 +981,21 @@ elements.heatmapRegionButtons.forEach((button) => {
     });
     state.activity.region = button.dataset.region || "";
     loadActivity();
+    loadRuleStats();
+  });
+});
+
+elements.ruleStatsRangeButtons.forEach((button) => {
+  button.addEventListener("click", () => {
+    if (state.ruleStats.loading || button.classList.contains("active")) return;
+    elements.ruleStatsRangeButtons.forEach((item) => {
+      const selected = item === button;
+      item.classList.toggle("active", selected);
+      item.setAttribute("aria-pressed", String(selected));
+    });
+    const days = button.dataset.days || "";
+    state.ruleStats.days = days === "" ? null : Number(days);
+    loadRuleStats();
   });
 });
 
@@ -1055,6 +1167,7 @@ elements.archiveActionForm.addEventListener("submit", async (event) => {
     await loadArchives();
     state.audit.loaded = false;
     state.dashboard.loaded = false;
+    state.ruleStats.loaded = false;
     if (elements.auditPanel.open) {
       state.audit.offset = 0;
       await loadAudit();

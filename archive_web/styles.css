@@ -510,6 +510,7 @@ main {
 
 /* 区域切换：分段选择器（对齐 electron segmented） */
 .heatmap-region-switch,
+.rule-stats-range-switch,
 .region-switch,
 .rule-scope-switch {
   display: grid;
@@ -523,7 +524,8 @@ main {
   width: fit-content;
 }
 
-.heatmap-region-switch .region-button {
+.heatmap-region-switch .region-button,
+.rule-stats-range-switch .region-button {
   min-height: 28px;
   padding: 0 11px;
   font-size: 11px;
@@ -678,6 +680,154 @@ button.heatmap-cell:focus-visible {
 
 .heatmap-frame > .table-state {
   margin: 10px 0 0;
+}
+
+/* --------------------------------------------------------------------------
+   规则告警统计（纯 CSS 比例条形排行，沿用 zinc token 与 badge 语义色）
+   -------------------------------------------------------------------------- */
+.rule-stats-frame {
+  position: relative;
+  margin-top: 14px;
+  padding: 18px 20px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
+}
+
+.rule-stats-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 22px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.rule-stats-meta strong {
+  margin-left: 2px;
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.rule-stats-legend {
+  display: flex;
+  gap: 14px;
+  margin-top: 10px;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.rule-stats-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.rule-stats-swatch {
+  width: 9px;
+  height: 9px;
+  border-radius: 3px;
+}
+
+.rule-stats-swatch-warning { background: var(--amber-solid); }
+
+.rule-stats-swatch-confirm { background: var(--blue-solid); }
+
+.rule-stats-boards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 26px;
+  margin-top: 14px;
+}
+
+.rule-stats-board h3 {
+  margin: 0 0 4px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line);
+  color: var(--ink-soft);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.rule-stats-list {
+  display: grid;
+  gap: 12px;
+  padding-top: 12px;
+}
+
+.rule-bar-row { min-width: 0; }
+
+.rule-bar-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.rule-bar-name {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rule-bar-count {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.rule-bar-track {
+  display: flex;
+  height: 8px;
+  margin-top: 6px;
+  overflow: hidden;
+  background: var(--surface-sunken);
+  border-radius: 999px;
+}
+
+.rule-bar-seg {
+  display: block;
+  min-width: 3px;
+  height: 100%;
+}
+
+.rule-bar-seg-warning { background: var(--amber-solid); }
+
+.rule-bar-seg-confirm { background: var(--blue-solid); }
+
+.rule-bar-foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin-top: 5px;
+  font-size: 10.5px;
+  font-weight: 600;
+}
+
+.rule-bar-stat-warning { color: var(--amber); }
+
+.rule-bar-stat-confirm { color: var(--blue); }
+
+.rule-bar-stat-acked { color: var(--green); }
+
+.rule-bar-stat-error { color: var(--red); }
+
+.rule-stats-frame > .table-state {
+  inset: 0;
+  border-radius: var(--radius-md);
+}
+
+@media (max-width: 900px) {
+  .rule-stats-boards { grid-template-columns: 1fr; }
 }
 
 /* 日期筛选 chip */

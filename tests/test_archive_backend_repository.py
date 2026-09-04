@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import sqlite3
 import tempfile
 import unittest
 from concurrent.futures import ThreadPoolExecutor
@@ -299,6 +300,111 @@ class ArchiveRepositoryTests(unittest.TestCase):
 	def test_activity_by_day_rejects_non_positive_days(self) -> None:
 		with self.assertRaises(ValueError):
 			self.repository.activity_by_day(0)
+
+	def _rule_stats_payloads(self) -> tuple[dict[str, object], dict[str, object], dict[str, object]]:
+		first = self.payload()
+		checks = {entry["type"]: entry for entry in first["validation"]["checks"]}
+		checks["hidden_item_listing"].update({"status": "warning", "warning_count": 2})
+		checks["skin_precheck"].update(
+			{"status": "confirm", "item_count": 3, "tables": ["英雄皮肤促销表"]}
+		)
+
+		second = copy.deepcopy(first)
+		second["package_id"] = "sgame_TH_Beta54_20260714120000"
+		second["idempotency_key"] = second["package_id"]
+		second["release"]["region_code"] = "TH"
+		second["release"]["region_dir"] = "Thailand"
+		second_checks = {entry["type"]: entry for entry in second["validation"]["checks"]}
+		second_checks["hidden_item_listing"].update({"status": "warning", "warning_count": 1})
+		second_checks["skin_precheck"].update(
+			{"status": "error", "warning_count": 1, "item_count": 0, "tables": ["英雄皮肤促销表"]}
+		)
+
+		legacy = copy.deepcopy(first)
+		legacy["package_id"] = "sgame_TW_Beta53_20260701120000"
+		legacy["idempotency_key"] = legacy["package_id"]
+		del legacy["validation"]["checks"]
+		return first, second, legacy
+
+	def test_rule_trigger_stats_aggregates_rules_tables_and_whitelist(self) -> None:
+		first, second, legacy = self._rule_stats_payloads()
+		for payload in (first, second, legacy):
+			self.repository.create_archive(payload)
+
+		stats = self.repository.rule_trigger_stats()
+
+		self.assertEqual(stats["covered_archives"], 2)
+		self.assertEqual(stats["skipped_legacy"], 1)
+		self.assertEqual(stats["whitelist_exemptions"], 2)
+		self.assertIsNone(stats["days"])
+		self.assertIsNone(stats["region_code"])
+
+		rules = {rule["type"]: rule for rule in stats["rules"]}
+		self.assertEqual(rules["hidden_item_listing"]["triggered_archives"], 2)
+		self.assertEqual(rules["hidden_item_listing"]["warning_count"], 3)
+		self.assertEqual(rules["hidden_item_listing"]["confirm_count"], 0)
+		self.assertEqual(rules["skin_precheck"]["triggered_archives"], 2)
+		self.assertEqual(rules["skin_precheck"]["warning_count"], 1)
+		self.assertEqual(rules["skin_precheck"]["confirm_count"], 3)
+		self.assertEqual(rules["skin_precheck"]["error_archives"], 1)
+		triggered_order = [rule["triggered_archives"] for rule in stats["rules"]]
+		self.assertEqual(triggered_order, sorted(triggered_order, reverse=True))
+
+		tables = {entry["table"]: entry["problem_count"] for entry in stats["tables"]}
+		self.assertEqual(tables["道具信息表"], 3)
+		self.assertEqual(tables["英雄皮肤促销表"], 4)
+
+	def test_rule_trigger_stats_counts_acknowledged_confirms(self) -> None:
+		first, second, legacy = self._rule_stats_payloads()
+		first["validation"]["acknowledgments"] = [
+			{
+				"type": "skin_precheck",
+				"name": "皮肤促销窗口预检",
+				"acknowledged_at": "2026-09-04T02:00:00Z",
+			},
+			{
+				"type": "skin_precheck",
+				"name": "皮肤促销窗口预检",
+				"acknowledged_at": "2026-09-04T02:01:00Z",
+			},
+		]
+		for payload in (first, second, legacy):
+			self.repository.create_archive(payload)
+
+		stats = self.repository.rule_trigger_stats()
+
+		rules = {rule["type"]: rule for rule in stats["rules"]}
+		self.assertEqual(rules["skin_precheck"]["acknowledged_count"], 2)
+		self.assertEqual(rules["hidden_item_listing"]["acknowledged_count"], 0)
+		self.assertEqual(stats["covered_archives"], 2)
+
+	def test_rule_trigger_stats_filters_by_region_and_days(self) -> None:
+		first, second, legacy = self._rule_stats_payloads()
+		for payload in (first, second, legacy):
+			self.repository.create_archive(payload)
+		old_day = (datetime.now(timezone.utc).date() - timedelta(days=10)).isoformat()
+		connection = sqlite3.connect(self.repository.database_path)
+		try:
+			connection.execute(
+				"UPDATE package_archives SET received_at = ? WHERE package_id = ?",
+				(f"{old_day}T01:00:00Z", legacy["package_id"]),
+			)
+			connection.commit()
+		finally:
+			connection.close()
+
+		taiwan = self.repository.rule_trigger_stats(region_code="TW")
+		recent = self.repository.rule_trigger_stats(days=7)
+
+		self.assertEqual(taiwan["region_code"], "TW")
+		self.assertEqual(taiwan["covered_archives"], 1)
+		self.assertEqual(taiwan["skipped_legacy"], 1)
+		taiwan_rules = {rule["type"]: rule for rule in taiwan["rules"]}
+		self.assertEqual(taiwan_rules["hidden_item_listing"]["triggered_archives"], 1)
+		self.assertEqual(recent["covered_archives"], 2)
+		self.assertEqual(recent["skipped_legacy"], 0)
+		with self.assertRaises(ValueError):
+			self.repository.rule_trigger_stats(days=0)
 
 
 if __name__ == "__main__":

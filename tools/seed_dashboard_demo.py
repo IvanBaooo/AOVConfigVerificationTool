@@ -39,6 +39,37 @@ for days_ago in range(90):
                 "validation_status": "passed" if warnings == 0 else "warning",
             },
         }
+        # 约 3/4 的归档带新版 validation.checks，其余留作 legacy（统计里计入 skipped）
+        if random.random() < 0.75:
+            checks = []
+            if random.random() < 0.40:
+                checks.append({
+                    "type": "skin-sale-change-check", "name": "皮肤售卖方式变更校验",
+                    "status": "warning", "warning_count": random.randint(1, 4), "item_count": random.randint(1, 3),
+                    "tables": ["英雄皮肤促销表"],
+                })
+            if random.random() < 0.30:
+                checks.append({
+                    "type": "hidden-item-tab", "name": "隐藏道具识别与单独标注",
+                    "status": "warning", "warning_count": random.randint(1, 2), "item_count": 1,
+                    "tables": ["道具信息表"],
+                })
+            if random.random() < 0.22:
+                checks.append({
+                    "type": "expiry-activity-cross-check", "name": "道具有效期与活动时间关联校验",
+                    "status": "warning", "warning_count": random.randint(1, 3), "item_count": random.randint(1, 2),
+                    "tables": ["道具信息表", "活动表"],
+                })
+            if random.random() < 0.12:
+                checks.append({
+                    "type": "package-completeness-manual", "name": "输入清单与包内容一一对应（仅手动bytes list场景）",
+                    "status": "confirm", "warning_count": 0, "item_count": random.randint(1, 3),
+                    "tables": ["（包级）"],
+                })
+            validation = {"rule_set": {"rule_set_id": "aov-main", "version": "2026.09.01.1"}, "checks": checks}
+            if random.random() < 0.15:
+                validation["commit_record"] = {"whitelisted_paths": [f"/Taiwan/Databin/Server/White{i}.xml" for i in range(random.randint(1, 2))]}
+            payload["validation"] = validation
         conn.execute(
             """INSERT INTO package_archives
                (package_id, schema_version, idempotency_key, payload_sha256, payload_json,
