@@ -43,10 +43,15 @@ SUMMARY_COLUMNS = (
 	"validation_status",
 	"file_count",
 	"warning_count",
+	"review_status",
+	"reviewed_at",
+	"reviewed_by",
 	"deleted_at",
 	"deleted_by",
 	"delete_reason",
 )
+
+REVIEW_TRIGGER_STATUSES = frozenset({"warning", "error", "confirm"})
 
 
 def _utc_now() -> str:
@@ -95,6 +100,17 @@ def _payload_summary(payload: Mapping[str, Any], received_at: str) -> dict[str, 
 		"file_count": package["file_count"],
 		"warning_count": validation["summary"]["warning_count"],
 	}
+
+
+def _review_status_for(payload: Mapping[str, Any], validation_status: Any) -> str:
+	validation = payload.get("validation") if isinstance(payload, Mapping) else None
+	checks = validation.get("checks") if isinstance(validation, Mapping) else None
+	if isinstance(checks, list):
+		for check in checks:
+			if isinstance(check, Mapping) and check.get("status") in REVIEW_TRIGGER_STATUSES:
+				return "pending_review"
+		return "confirmed"
+	return "pending_review" if validation_status == "warning" else "confirmed"
 
 
 def _row_summary(row: sqlite3.Row) -> dict[str, object]:
@@ -187,6 +203,34 @@ class ArchiveRepository:
 			for name in ("deleted_at", "deleted_by", "delete_reason"):
 				if name not in columns:
 					connection.execute(f"ALTER TABLE package_archives ADD COLUMN {name} TEXT")
+			for name in ("review_status", "reviewed_at", "reviewed_by"):
+				if name not in columns:
+					connection.execute(f"ALTER TABLE package_archives ADD COLUMN {name} TEXT")
+			for row in connection.execute(
+				"""
+				SELECT package_id, payload_json, validation_status, received_at
+				FROM package_archives
+				WHERE review_status IS NULL
+				"""
+			).fetchall():
+				try:
+					legacy_payload = json.loads(row["payload_json"])
+				except (TypeError, ValueError):
+					legacy_payload = {}
+				if _review_status_for(legacy_payload, row["validation_status"]) == "pending_review":
+					connection.execute(
+						"UPDATE package_archives SET review_status = 'pending_review' WHERE package_id = ?",
+						(row["package_id"],),
+					)
+				else:
+					connection.execute(
+						"""
+						UPDATE package_archives
+						SET review_status = 'confirmed', reviewed_at = ?, reviewed_by = 'migration'
+						WHERE package_id = ?
+						""",
+						(row["received_at"], row["package_id"]),
+					)
 			for row in connection.execute("SELECT DISTINCT region_code FROM package_archives"):
 				latest = connection.execute(
 					"""
@@ -207,12 +251,16 @@ class ArchiveRepository:
 						""",
 						(row["region_code"], latest["package_id"], latest["received_at"]),
 					)
-			connection.execute("PRAGMA user_version = 4")
+			connection.execute("PRAGMA user_version = 5")
 
 	def create_archive(self, payload: Mapping[str, Any]) -> CreateArchiveResult:
 		normalized, payload_json, payload_sha256 = _canonical_payload(payload)
 		received_at = _utc_now()
 		summary = _payload_summary(normalized, received_at)
+		review_status = _review_status_for(normalized, summary["validation_status"])
+		summary["review_status"] = review_status
+		summary["reviewed_at"] = received_at if review_status == "confirmed" else None
+		summary["reviewed_by"] = "auto" if review_status == "confirmed" else None
 		connection = self._connect()
 		try:
 			connection.execute("BEGIN IMMEDIATE")
@@ -248,8 +296,9 @@ class ArchiveRepository:
 					package_id, schema_version, idempotency_key,
 					payload_sha256, payload_json, created_at, received_at,
 					region_code, region_dir, package_version,
-					package_status, validation_status, file_count, warning_count
-				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+					package_status, validation_status, file_count, warning_count,
+					review_status, reviewed_at, reviewed_by
+				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 				""",
 				(
 					summary["package_id"],
@@ -266,6 +315,9 @@ class ArchiveRepository:
 					summary["validation_status"],
 					summary["file_count"],
 					summary["warning_count"],
+					summary["review_status"],
+					summary["reviewed_at"],
+					summary["reviewed_by"],
 				),
 			)
 			connection.execute(
@@ -309,7 +361,17 @@ class ArchiveRepository:
 					pa.deleted_at,
 					pa.deleted_by,
 					pa.delete_reason,
-					CASE WHEN rb.package_id = pa.package_id THEN 1 ELSE 0 END AS is_release_baseline
+					pa.review_status,
+					pa.reviewed_at,
+					pa.reviewed_by,
+					CASE WHEN rb.package_id = pa.package_id THEN 1 ELSE 0 END AS is_release_baseline,
+					(
+						SELECT audit.reason
+						FROM archive_admin_audit AS audit
+						WHERE audit.package_id = pa.package_id AND audit.action = 'review_confirm'
+						ORDER BY audit.created_at DESC, audit.id DESC
+						LIMIT 1
+					) AS review_note
 				FROM package_archives AS pa
 				LEFT JOIN release_baselines AS rb ON rb.region_code = pa.region_code
 				WHERE pa.package_id = ?
@@ -325,7 +387,75 @@ class ArchiveRepository:
 			"deleted_at": row["deleted_at"],
 			"deleted_by": row["deleted_by"],
 			"delete_reason": row["delete_reason"],
+			"review_status": row["review_status"],
+			"reviewed_at": row["reviewed_at"],
+			"reviewed_by": row["reviewed_by"],
+			"review_note": row["review_note"],
 		}
+
+	def confirm_archive_review(
+		self,
+		package_id: str,
+		*,
+		actor: str,
+		note: str | None = None,
+	) -> dict[str, object]:
+		changed_at = _utc_now()
+		connection = self._connect()
+		try:
+			connection.execute("BEGIN IMMEDIATE")
+			row = connection.execute(
+				"""
+				SELECT region_code, review_status, reviewed_at, reviewed_by
+				FROM package_archives
+				WHERE package_id = ?
+				""",
+				(package_id,),
+			).fetchone()
+			if row is None:
+				raise ArchiveConflict("archive_not_found", "The archive record was not found.")
+			if row["review_status"] == "confirmed":
+				connection.commit()
+				return {
+					"result": "replayed",
+					"package_id": package_id,
+					"region_code": row["region_code"],
+					"review_status": "confirmed",
+					"reviewed_at": row["reviewed_at"],
+					"reviewed_by": row["reviewed_by"],
+				}
+			connection.execute(
+				"""
+				UPDATE package_archives
+				SET review_status = 'confirmed', reviewed_at = ?, reviewed_by = ?
+				WHERE package_id = ?
+				""",
+				(changed_at, actor, package_id),
+			)
+			connection.execute(
+				"""
+				INSERT INTO archive_admin_audit (
+					package_id, action, actor, reason, created_at
+				) VALUES (?, 'review_confirm', ?, ?, ?)
+				""",
+				(package_id, actor, note or "", changed_at),
+			)
+			connection.commit()
+			return {
+				"result": "confirmed",
+				"package_id": package_id,
+				"region_code": row["region_code"],
+				"review_status": "confirmed",
+				"reviewed_at": changed_at,
+				"reviewed_by": actor,
+				"note": note,
+			}
+		except Exception:
+			if connection.in_transaction:
+				connection.rollback()
+			raise
+		finally:
+			connection.close()
 
 	def get_latest_release_baseline(self, region_code: str) -> dict[str, object] | None:
 		with self._open_connection() as connection:
@@ -725,7 +855,11 @@ class ArchiveRepository:
 					SUM(CASE
 						WHEN deleted_at IS NULL AND validation_status IN ('warning', 'failed') THEN 1
 						ELSE 0
-					END) AS attention_count
+					END) AS attention_count,
+					SUM(CASE
+						WHEN deleted_at IS NULL AND review_status = 'pending_review' THEN 1
+						ELSE 0
+					END) AS pending_review_count
 				FROM package_archives
 				"""
 			).fetchone()
@@ -765,6 +899,7 @@ class ArchiveRepository:
 				"active_count": int(overview["active_count"] or 0),
 				"deleted_count": int(overview["deleted_count"] or 0),
 				"attention_count": int(overview["attention_count"] or 0),
+				"pending_review_count": int(overview["pending_review_count"] or 0),
 				"baseline_count": int(baseline_count),
 			},
 			"regions": regions,

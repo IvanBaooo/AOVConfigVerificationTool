@@ -101,6 +101,7 @@ const elements = {
   dashboardUpdatedAt: document.querySelector("#dashboard-updated-at"),
   dashboardActiveCount: document.querySelector("#dashboard-active-count"),
   dashboardAttentionCount: document.querySelector("#dashboard-attention-count"),
+  dashboardPendingReviewCount: document.querySelector("#dashboard-pending-review-count"),
   dashboardDeletedCount: document.querySelector("#dashboard-deleted-count"),
   dashboardBaselineCount: document.querySelector("#dashboard-baseline-count"),
   dashboardNotice: document.querySelector("#dashboard-notice"),
@@ -189,6 +190,9 @@ function statusMeta(status) {
     delete: ["删除", "error"],
     restore: ["恢复", "success"],
     baseline_set: ["设置基线", "neutral"],
+    review_confirm: ["确认归档", "success"],
+    pending_review: ["待复核", "warning"],
+    confirmed: ["已确认", "success"],
   };
   return values[String(status)] || [String(status || "未知"), "neutral"];
 }
@@ -322,6 +326,7 @@ function renderList() {
         <td class="number-cell">${escapeHtml(item.file_count)}</td>
         <td class="number-cell">${escapeHtml(item.warning_count)}</td>
         <td>${badge(item.validation_status)}</td>
+        <td>${badge(item.review_status || "confirmed")}</td>
         <td>${badge(item.package_status)}</td>
         <td>${badge(deleted ? "deleted" : baseline ? "baseline" : "active")}</td>
         <td><div class="record-actions">${managementButtons}</div></td>
@@ -377,6 +382,7 @@ function renderDashboard(payload) {
   elements.dashboardUpdatedAt.textContent = `更新于 ${formatDate(payload.generated_at)}`;
   elements.dashboardActiveCount.textContent = String(overview.active_count || 0);
   elements.dashboardAttentionCount.textContent = String(overview.attention_count || 0);
+  elements.dashboardPendingReviewCount.textContent = String(overview.pending_review_count || 0);
   elements.dashboardDeletedCount.textContent = String(overview.deleted_count || 0);
   elements.dashboardBaselineCount.textContent = `${overview.baseline_count || 0} / 4`;
   elements.dashboardRegionRows.innerHTML = regions.map((region) => {
@@ -798,6 +804,39 @@ function renderDetail(archive, management = {}) {
   elements.detailTitle.textContent = archive.package_id || "归档详情";
 
   const deleted = management.record_state === "deleted";
+  const reviewStatus = management.review_status || "confirmed";
+  const reviewSection = reviewStatus === "pending_review" ? `
+    <section class="detail-section detail-review">
+      <h3>归档复核</h3>
+      <div class="validation-row">
+        <strong>复核状态</strong>
+        <p>该归档包含告警或待确认项，人工复核通过后才会标记为已确认</p>
+        ${badge("pending_review")}
+      </div>
+      <div class="notice error hidden" id="review-notice" role="status"></div>
+      <label class="review-note-field">
+        <span>复核备注（选填）</span>
+        <textarea id="review-note" maxlength="500" rows="3" placeholder="确认说明，会写入操作记录"></textarea>
+      </label>
+      <div class="record-actions">
+        <button class="button button-primary" id="review-confirm-button" type="button">确认归档</button>
+      </div>
+    </section>
+  ` : `
+    <section class="detail-section detail-review">
+      <h3>归档复核</h3>
+      <div class="validation-row">
+        <strong>复核状态</strong>
+        <p>${escapeHtml(management.reviewed_by === "auto" || management.reviewed_by === "migration" ? "无告警或待确认项，自动确认" : "人工复核确认")}</p>
+        ${badge("confirmed")}
+      </div>
+      <div class="key-grid">
+        ${keyValue("确认人", management.reviewed_by)}
+        ${keyValue("确认时间", formatDate(management.reviewed_at))}
+        ${management.review_note ? keyValue("复核备注", management.review_note) : ""}
+      </div>
+    </section>
+  `;
   elements.detailContent.innerHTML = `
     <section class="detail-section detail-management">
       <h3>记录管理</h3>
@@ -808,6 +847,7 @@ function renderDetail(archive, management = {}) {
         ${deleted ? keyValue("删除原因", management.delete_reason) : ""}
       </div>
     </section>
+    ${reviewSection}
     <section class="detail-section">
       <h3>发布信息</h3>
       <div class="key-grid">
@@ -873,6 +913,36 @@ function renderDetail(archive, management = {}) {
       </div>
     </section>
   `;
+  const confirmButton = elements.detailContent.querySelector("#review-confirm-button");
+  if (confirmButton) {
+    confirmButton.addEventListener("click", () => confirmArchiveReview(archive.package_id));
+  }
+}
+
+async function confirmArchiveReview(packageId) {
+  const button = elements.detailContent.querySelector("#review-confirm-button");
+  const noteInput = elements.detailContent.querySelector("#review-note");
+  const notice = elements.detailContent.querySelector("#review-notice");
+  const note = noteInput ? noteInput.value.trim() : "";
+  if (button) button.disabled = true;
+  if (notice) notice.classList.add("hidden");
+  try {
+    await apiRequest(
+      `/api/v1/admin/package-archives/${encodeURIComponent(packageId)}/review-confirm`,
+      { method: "POST", body: note ? { note } : {} },
+    );
+    state.dashboard.loaded = false;
+    state.audit.loaded = false;
+    loadArchives();
+    await loadDetail(packageId);
+  } catch (error) {
+    if (button) button.disabled = false;
+    if (notice) {
+      notice.textContent = error.message || "确认归档失败。";
+      notice.classList.remove("hidden");
+    }
+    if (error instanceof ApiError && error.status === 401) handleApiError(error);
+  }
 }
 
 function openDrawer() {

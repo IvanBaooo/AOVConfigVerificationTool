@@ -72,6 +72,7 @@
           <div class="dashboard-metrics" aria-label="发布指标">
             <div><span>正常归档</span><strong id="dashboard-active-count">--</strong></div>
             <div><span>需关注</span><strong id="dashboard-attention-count">--</strong></div>
+            <div><span>待复核</span><strong id="dashboard-pending-review-count">--</strong></div>
             <div><span>已删除</span><strong id="dashboard-deleted-count">--</strong></div>
             <div><span>已建立基线</span><strong id="dashboard-baseline-count">-- / 4</strong></div>
           </div>
@@ -289,10 +290,10 @@
                         </select>
                       </label>
                     </th>
+                    <th><span class="column-title">复核</span></th>
                     <th class="filter-column">
                       <label class="column-filter">
-                        <span class="column-title">打包</span>
-                        <select id="filter-package-status" name="package_status" aria-label="筛选打包状态">
+                        <span class="column-title">打包</span>                        <select id="filter-package-status" name="package_status" aria-label="筛选打包状态">
                           <option value="">全部</option>
                           <option value="success">成功</option>
                           <option value="partial">部分成功</option>
@@ -351,6 +352,7 @@
                             <option value="delete">删除</option>
                             <option value="restore">恢复</option>
                             <option value="baseline_set">设置基线</option>
+                            <option value="review_confirm">确认归档</option>
                           </select>
                         </label>
                       </th>

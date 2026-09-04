@@ -426,7 +426,7 @@ class ArchiveApplication:
 		body: bytes,
 	) -> ApiResponse:
 		parts = suffix.split("/")
-		if len(parts) != 2 or parts[1] not in {"soft-delete", "restore"}:
+		if len(parts) != 2 or parts[1] not in {"soft-delete", "restore", "review-confirm"}:
 			return _error(404, "route_not_found", "The API route was not found.")
 		if method != "POST":
 			return _error(405, "method_not_allowed", "Only POST is allowed.")
@@ -442,6 +442,31 @@ class ArchiveApplication:
 			return _error(400, "invalid_json", "The request body is not valid UTF-8 JSON.")
 		if not isinstance(payload, dict):
 			return _error(422, "invalid_management_request", "The request body must be an object.")
+		if parts[1] == "review-confirm":
+			note = payload.get("note")
+			if note is not None and (not isinstance(note, str) or len(note.strip()) > 500):
+				return _error(
+					422,
+					"invalid_management_request",
+					"note must be a string of at most 500 characters.",
+				)
+			try:
+				review = self.repository.confirm_archive_review(
+					package_id,
+					actor="admin",
+					note=note.strip() if isinstance(note, str) and note.strip() else None,
+				)
+			except ArchiveConflict as conflict:
+				status = 404 if conflict.code == "archive_not_found" else 409
+				return _error(status, conflict.code, str(conflict))
+			return ApiResponse(
+				200,
+				{
+					"result": review["result"],
+					"review": {key: value for key, value in review.items() if key != "result"},
+				},
+				{"Idempotency-Replayed": "true"} if review["result"] == "replayed" else {},
+			)
 		reason = payload.get("reason")
 		if not isinstance(reason, str) or not reason.strip() or len(reason.strip()) > 500:
 			return _error(
@@ -537,7 +562,7 @@ class ArchiveApplication:
 		if not 1 <= limit <= 200 or not 0 <= offset <= MAX_LIST_OFFSET:
 			return _error(400, "invalid_query", "The audit pagination is out of range.")
 		action = parameters.get("action", [None])[0]
-		if action is not None and action not in {"delete", "restore", "baseline_set"}:
+		if action is not None and action not in {"delete", "restore", "baseline_set", "review_confirm"}:
 			return _error(400, "invalid_query", "Invalid audit action filter.")
 		region_code = parameters.get("region_code", [None])[0]
 		if region_code is not None:
