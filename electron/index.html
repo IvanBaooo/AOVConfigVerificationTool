@@ -23,8 +23,12 @@
           <span class="nav-index">01</span>
           <span>打包任务</span>
         </button>
-        <button class="nav-item" type="button" data-view="settings">
+        <button class="nav-item" type="button" data-view="showcase">
           <span class="nav-index">02</span>
+          <span>演示模式</span>
+        </button>
+        <button class="nav-item" type="button" data-view="settings">
+          <span class="nav-index">03</span>
           <span>本地配置</span>
         </button>
       </nav>
@@ -72,13 +76,21 @@
                     <span class="section-number">01</span>
                     <h2 id="region-title">打包区域</h2>
                   </div>
-                  <span class="scope-value" id="scope-display">/Taiwan</span>
                 </div>
-                <div class="segmented regions" id="region-control" role="group" aria-label="打包区域">
-                  <button type="button" data-region="TW" class="active">TW</button>
-                  <button type="button" data-region="TH">TH</button>
-                  <button type="button" data-region="VN">VN</button>
-                  <button type="button" data-region="ID">ID</button>
+                <div class="region-select-row">
+                  <label class="region-select-wrap">
+                    <span class="sr-only">打包区域</span>
+                    <select id="region-select">
+                      <option value="TW">TW · 台湾</option>
+                      <option value="TH">TH · 泰国</option>
+                      <option value="VN">VN · 越南</option>
+                      <option value="ID">ID · 印尼</option>
+                    </select>
+                  </label>
+                  <div class="pack-dir">
+                    <span>打包目录</span>
+                    <code id="scope-display">/Taiwan</code>
+                  </div>
                 </div>
               </section>
 
@@ -89,24 +101,17 @@
                     <h2 id="revision-title">本次 Revision</h2>
                   </div>
                   <div class="input-source-control segmented small" role="group" aria-label="SVN输入方式">
-                    <button type="button" class="active" data-source="auto">自动读取</button>
-                    <button type="button" data-source="manual">粘贴日志</button>
+                    <button type="button" class="active" data-source="commits">提交记录</button>
+                    <button type="button" data-source="auto">输入版本号</button>
                     <button type="button" data-source="files">文件列表</button>
                   </div>
                 </div>
                 <label class="revision-input-wrap">
                   <span>Revision</span>
-                  <input id="current-revision" autocomplete="off" placeholder="r1699919,r1699997">
+                  <input id="current-revision" autocomplete="off" placeholder="由提交记录自动提取">
                 </label>
-                <div class="content-mode-row">
-                  <span>内容版本</span>
-                  <div class="segmented small" id="content-mode-control" role="group" aria-label="打包内容版本">
-                    <button type="button" class="active" data-content-mode="local_latest">本地最新</button>
-                    <button type="button" data-content-mode="historical_revision">历史精确</button>
-                  </div>
-                </div>
-                <div class="manual-input hidden" id="manual-input-wrap">
-                  <label for="manual-input" id="manual-input-label">SVN log -v 内容</label>
+                <div class="manual-input" id="manual-input-wrap">
+                  <label for="manual-input" id="manual-input-label">提交记录（粘贴后自动提取版本号到 Revision 栏）</label>
                   <textarea id="manual-input" spellcheck="false"></textarea>
                 </div>
               </section>
@@ -127,7 +132,6 @@
               </section>
 
               <div class="primary-action-row">
-                <button class="quiet-button" id="run-test" type="button">执行测试</button>
                 <button class="primary-button" id="start-pack" type="button">
                   <span>开始打包</span>
                   <kbd>Ctrl Enter</kbd>
@@ -161,37 +165,11 @@
             <div class="result-heading">
               <div>
                 <span class="eyebrow">PACKAGE RESULT</span>
-                <h2 id="result-title">内容概况</h2>
+                <h2 id="result-title">打包结果</h2>
               </div>
               <span class="result-status" id="result-status">待确认</span>
             </div>
-            <div class="analysis-summary" id="analysis-summary">
-              <div class="analysis-verdict">
-                <span>本次结论</span>
-                <strong id="analysis-update">未识别到业务内容更新</strong>
-                <p id="analysis-note">完成打包后将在这里汇总业务对象与关联风险。</p>
-              </div>
-              <dl>
-                <div><dt>内容来源</dt><dd id="analysis-source">等待检查</dd></div>
-                <div><dt>关联影响</dt><dd id="analysis-related">0个历史活动</dd></div>
-                <div><dt>结构风险</dt><dd id="analysis-risk">当前未发现</dd></div>
-                <div><dt>仅记录差异</dt><dd id="analysis-uninterpreted">0条</dd></div>
-              </dl>
-            </div>
-            <section class="content-overview" aria-labelledby="content-overview-title">
-              <div class="content-overview-heading">
-                <div>
-                  <span>BUSINESS OBJECTS</span>
-                  <h3 id="content-overview-title">核心内容</h3>
-                </div>
-                <strong id="content-overview-count">0 项</strong>
-              </div>
-              <div class="content-update-list" id="content-update-list" role="tablist" aria-label="核心内容分类"></div>
-              <div class="content-preview-list" id="content-preview-list">
-                <p class="content-empty">尚未生成业务内容概况。</p>
-              </div>
-            </section>
-            <div class="package-strip">
+            <div class="result-grid">
               <div class="package-identity">
                 <span>归档包</span>
                 <strong id="result-package">--</strong>
@@ -203,6 +181,10 @@
                 <div><dt>错误</dt><dd id="result-errors">0</dd></div>
               </dl>
             </div>
+            <div class="summary-strip" id="summary-strip">
+              <ul id="summary-lines"></ul>
+              <button class="quiet-button small" id="ai-summary" type="button" disabled title="待接入内部大模型网关后开放">AI 总结 · 待接入</button>
+            </div>
             <div class="result-actions">
               <button class="quiet-button" id="open-output" type="button">打开目录</button>
               <button class="quiet-button" id="open-report" type="button">打开 Report</button>
@@ -212,18 +194,117 @@
               <div><span id="upload-label">FTP 上传</span><strong id="upload-percent">0%</strong></div>
               <progress id="upload-bar" max="100" value="0"></progress>
             </div>
+
+            <details class="check-block" id="block-commit">
+              <summary class="check-block-head">
+                <div><span class="section-number">01</span><h3 id="commit-block-title">打包与提交校验</h3></div>
+                <div class="block-tags" id="commit-block-tags"></div>
+              </summary>
+              <div class="check-block-body">
+                <div class="file-chips body-chips">
+                  <span class="chip ok">已打包 <b id="chip-packaged">0</b></span>
+                  <span class="chip">失败 <b id="chip-failed">0</b></span>
+                  <span class="chip">跳过 <b id="chip-skipped">0</b></span>
+                </div>
+                <p class="commit-compare" id="commit-compare"></p>
+                <div class="high-risk-box hidden" id="high-risk-box">
+                  <p class="high-risk-title">⚠ 高危名单命中（置顶）</p>
+                  <div id="high-risk-groups"></div>
+                </div>
+                <div class="commit-groups" id="commit-groups"></div>
+                <details class="whitelist-box hidden" id="whitelist-box">
+                  <summary id="whitelist-summary">已豁免（白名单）</summary>
+                  <div id="whitelist-groups"></div>
+                </details>
+              </div>
+            </details>
+
+            <details class="check-block" id="block-content">
+              <summary class="check-block-head">
+                <div><span class="section-number">02</span><h3 id="content-block-title">对外内容</h3></div>
+                <div class="block-tags" id="content-block-tags"></div>
+              </summary>
+              <div class="check-block-body">
+                <div class="body-toolbar">
+                  <div class="segmented small" id="content-tabs" role="group" aria-label="内容视图">
+                    <button type="button" class="active" data-tab="objects">业务对象</button>
+                    <button type="button" data-tab="files">文件清单</button>
+                  </div>
+                </div>
+                <div id="module-groups"></div>
+                <div class="file-table-wrap hidden" id="file-table-wrap">
+                  <table class="file-table">
+                    <thead><tr><th>动作</th><th>路径</th><th>大小</th><th>状态</th></tr></thead>
+                    <tbody id="file-table-body"></tbody>
+                  </table>
+                </div>
+              </div>
+            </details>
+
+            <details class="check-block" id="block-rules">
+              <summary class="check-block-head">
+                <div><span class="section-number">03</span><h3 id="rules-block-title">规则校验 · 道具校验</h3></div>
+                <div class="block-tags" id="rules-block-tags"></div>
+              </summary>
+              <div class="check-block-body">
+                <div id="rule-checks"></div>
+              </div>
+            </details>
           </section>
 
-          <details class="content-validation">
-            <summary>
-              <span>内容详情</span>
-              <strong id="activity-detail-count">等待打包</strong>
-            </summary>
-            <div class="module-detail-tabs hidden" id="module-detail-tabs" role="tablist" aria-label="按 Module 查看内容详情"></div>
-            <div class="activity-detail-list" id="activity-detail-list">
-              <p>打包完成后可在这里查看活动、皮肤、道具、奖励与限量内容。</p>
+          <div class="obj-drawer-backdrop hidden" id="obj-drawer-backdrop"></div>
+          <aside class="obj-drawer hidden" id="obj-drawer" aria-label="内容详情">
+            <header class="obj-drawer-head">
+              <div>
+                <h3 id="obj-drawer-title">详情</h3>
+                <code id="obj-drawer-sub"></code>
+              </div>
+              <button class="quiet-button" id="obj-drawer-close" type="button">关闭</button>
+            </header>
+            <div class="obj-drawer-body" id="obj-drawer-body"></div>
+          </aside>
+        </section>
+
+        <section class="view hidden" id="showcase-view">
+          <section class="settings-section">
+            <div class="section-heading">
+              <div><span class="section-number">01</span><h2>演示工作区</h2></div>
+              <span class="tag tag-plain" id="showcase-state">未初始化</span>
             </div>
-          </details>
+            <p class="showcase-hint">演示数据是真实备份的本地克隆（APFS clonefile，几乎不占空间），所有场景改动只发生在副本上，不会提交 SVN。初始化后也可以用外部编辑器直接改副本里的 dtxml，再点「运行演示校验」。</p>
+            <div class="showcase-meta">
+              <span>工作目录</span>
+              <code id="showcase-workspace">--</code>
+              <button class="quiet-button" id="open-showcase-dir" type="button">打开目录</button>
+            </div>
+            <div class="form-grid">
+              <label><span>基线 Revision（上次对外）</span><input id="showcase-baseline" placeholder="1738000"></label>
+              <label><span>当前 Revision</span><input id="showcase-current" placeholder="1738100"></label>
+            </div>
+            <div class="showcase-actions">
+              <button class="quiet-button" id="init-showcase" type="button">初始化/重置演示数据</button>
+              <button class="primary-button" id="run-showcase" type="button">运行演示校验</button>
+            </div>
+          </section>
+
+          <section class="settings-section">
+            <div class="section-heading"><div><span class="section-number">02</span><h2>演示场景</h2></div></div>
+            <div class="scene-list" id="showcase-scenes"><p class="empty-hint">加载中…</p></div>
+          </section>
+
+          <section class="settings-section">
+            <div class="section-heading"><div><span class="section-number">03</span><h2>行编辑器</h2></div></div>
+            <p class="showcase-hint">直接编辑演示副本中的 dtxml 行（只改副本，不影响真实备份）。保存后点「运行演示校验」即可看到规则命中效果。</p>
+            <div class="row-editor-bar">
+              <select id="editor-table"><option value="">选择表…</option></select>
+              <select id="editor-sheet"><option value="">选择 Sheet…</option></select>
+              <input id="editor-search" placeholder="按 ID / 名称搜索">
+            </div>
+            <div class="row-editor-layout">
+              <div class="row-list" id="editor-rows"><p class="empty-hint">先初始化演示数据，再选择表与 Sheet</p></div>
+              <div class="row-form" id="editor-form"><p class="empty-hint">从左侧选择一行进行编辑</p></div>
+            </div>
+          </section>
         </section>
 
         <section class="view hidden" id="settings-view">
@@ -290,7 +371,25 @@
                 <label><span>区域范围</span><input id="scope-roots"></label>
                 <label class="toggle-row"><input type="checkbox" id="enable-commit-check"><span>启用提交记录检查</span></label>
                 <label class="toggle-row"><input type="checkbox" id="enable-region-filter"><span>启用区域文件过滤</span></label>
-                <label class="wide"><span>提交白名单</span><textarea id="commit-whitelist" rows="5"></textarea></label>
+                <div class="wide">
+                  <span class="list-editor-label">提交白名单（命中后豁免告警；支持 * 通配，同名 xml/bytes 用 文件名.* 一条覆盖）</span>
+                  <div class="list-editor" id="commit-whitelist-editor"></div>
+                  <textarea id="commit-whitelist" rows="5" hidden></textarea>
+                </div>
+                <div class="wide">
+                  <span class="list-editor-label">高危名单（命中后置顶标红；支持 * 通配，写不带扩展名的表名即可同时命中 xml/bytes）</span>
+                  <div class="list-editor" id="commit-high-risk-editor"></div>
+                  <textarea id="commit-high-risk" rows="3" hidden></textarea>
+                </div>
+              </div>
+            </section>
+
+            <section class="settings-section advanced-section">
+              <div class="section-heading"><div><span class="section-number">06</span><h2>内容校验规则</h2></div></div>
+              <div class="form-grid">
+                <div class="wide rule-toggle-list" id="rule-toggles">
+                  <p class="empty-hint">规则清单加载中…</p>
+                </div>
               </div>
             </section>
 

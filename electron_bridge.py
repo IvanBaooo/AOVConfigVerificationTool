@@ -37,9 +37,28 @@ from rules.registry import (
 )
 from svn_cli_log_auth import fetch_svn_log_with_auth
 from svn_commit_pack_input import build_packer_file_list_from_svn_log
-from svn_commit_validation import RevisionSpecError
+from svn_commit_validation import RevisionSpecError, normalize_fixed_path
 from svn_dtxml_changeset import infer_tdr_svn_target
 from svn_pack_source import PackSourceError, historical_pack_root, inspect_pack_source
+from changeset_modules import ModuleContext, run_changeset_modules
+from showcase_studio import (
+	BYTES_BY_DFXML,
+	REGION as SHOWCASE_REGION,
+	REPO_PREFIX as SHOWCASE_REPO_PREFIX,
+	build_showcase_changeset,
+	diff_workspace,
+	init_workspace,
+	list_rows as showcase_list_rows,
+	list_sheets as showcase_list_sheets,
+	list_tables as showcase_list_tables,
+	update_row as showcase_update_row,
+	delete_row as showcase_delete_row,
+	add_row as showcase_add_row,
+	showcase_status,
+	synthesize_svn_log,
+	workspace_layout,
+)
+from validation_full_mvp_optimized import run_full_mvp_validations_optimized
 
 
 SUPPORTED_REGIONS = ("TW", "TH", "VN", "ID")
@@ -232,6 +251,40 @@ def build_validation_config(payload: Mapping[str, object], svn_log_text: str) ->
 	return config
 
 
+def _module_detail_lists(module_analysis: object) -> tuple[list[dict[str, object]], list[dict[str, object]]]:
+	activity_details: list[dict[str, object]] = []
+	content_details: list[dict[str, object]] = []
+	if isinstance(module_analysis, dict):
+		for module in module_analysis.get("modules", []):
+			if not isinstance(module, dict):
+				continue
+			module_id = str(module.get("module", ""))
+			module_name = str(module.get("name", ""))
+			for item in module.get("items", []):
+				if not isinstance(item, dict):
+					continue
+				detail = {
+					"module": module_id,
+					"module_name": module_name,
+					"object_id": item.get("object_id", ""),
+					"object_name": item.get("name", ""),
+					"object_type": item.get("object_type", ""),
+					"activity_type": item.get("activity_type", ""),
+					"direct_change": bool(item.get("changes")),
+					"display_lines": item.get("display_lines", []),
+				}
+				content_details.append(detail)
+				if module_id == "activity":
+					activity_details.append({
+						"activity_id": detail["object_id"],
+						"activity_name": detail["object_name"],
+						"activity_type": detail["activity_type"],
+						"direct_change": detail["direct_change"],
+						"display_lines": detail["display_lines"],
+					})
+	return activity_details, content_details
+
+
 class ElectronBridgeService:
 	def __init__(self, project_root: str | Path | None = None) -> None:
 		self.project_root = Path(project_root or Path(__file__).resolve().parent)
@@ -274,6 +327,189 @@ class ElectronBridgeService:
 	def command_list_validation_rules(self, _payload: Mapping[str, object], _emit: EventCallback) -> dict[str, object]:
 		"""设置页「内容校验规则」开关的数据源：返回注册表元数据。"""
 		return {"rules": all_rule_specs()}
+
+	def _showcase_root(self, payload: Mapping[str, object]) -> Path:
+		custom = _string(payload.get("showcase_dir"))
+		return Path(custom) if custom else (self.project_root.parent / "showcase")
+
+	def command_showcase_status(self, payload: Mapping[str, object], _emit: EventCallback) -> dict[str, object]:
+		return showcase_status(self._showcase_root(payload))
+
+	def command_init_showcase(self, payload: Mapping[str, object], emit: EventCallback) -> dict[str, object]:
+		settings = load_local_settings(self.settings_path)
+		source = _string(payload.get("source_tdr_root")) or _string(settings.get("tdr_root"))
+		if not source or not Path(source).is_dir():
+			raise PackagingError("找不到真实 TdrTable 备份目录，请先在设置页配置 tdr_root。")
+		reset = _boolean(payload.get("reset"), False)
+		emit("log", {"level": "info", "message": "正在克隆演示数据（APFS clonefile，几乎不占空间）..."})
+		result = init_workspace(self._showcase_root(payload), Path(source), force=reset)
+		emit("log", {"level": "info", "message": "演示数据就绪，已应用全部演示场景。"})
+		return result
+
+	def command_run_showcase(self, payload: Mapping[str, object], emit: EventCallback) -> dict[str, object]:
+		settings = load_local_settings(self.settings_path)
+		merged = merge_settings(settings, payload)
+		root = self._showcase_root(payload)
+		layout = workspace_layout(root)
+		if not layout["current"].is_dir():
+			raise PackagingError("演示工作区未初始化，请先点击「初始化/重置演示数据」。")
+		try:
+			baseline_revision = int(_string(payload.get("baseline_revision")) or "1738000")
+			current_revision = int(_string(payload.get("current_revision_spec")) or str(baseline_revision + 100))
+		except ValueError:
+			raise PackagingError("基线/当前 revision 必须是数字。")
+		if current_revision <= baseline_revision:
+			raise PackagingError("当前 revision 必须大于基线 revision。")
+
+		def log(message: str, level: str = "info") -> None:
+			emit("log", {"message": message, "level": level})
+
+		log("正在对比 baseline/current 演示目录...")
+		changes = diff_workspace(root)
+		log_text = synthesize_svn_log(
+			changes,
+			current_revision=current_revision,
+			baseline_revision=baseline_revision,
+		)
+		log(f"演示提交：{len(changes)} 个 dtxml 变更 · 基线 r{baseline_revision} → 当前 r{current_revision}")
+
+		showcase_payload = dict(merged)
+		showcase_payload.update({
+			"region": SHOWCASE_REGION,
+			"input_method": "revision_spec",
+			"current_revision_spec": str(current_revision),
+			"last_external_revision_spec": str(baseline_revision),
+			"tdr_root": str(layout["current"]),
+			"svn_target": SHOWCASE_REPO_PREFIX + "/ServerBytes",
+		})
+		validation_config = build_validation_config(showcase_payload, log_text)
+
+		log("正在用本地内容源生成 DTXML ChangeSet（不访问 SVN）...")
+		change_set = build_showcase_changeset(
+			root,
+			log_text=log_text,
+			current_revision=current_revision,
+		)
+		changeset_changes = None
+		if change_set.get("status") in {"passed", "warning"} and isinstance(change_set.get("changes"), list):
+			changeset_changes = change_set["changes"]
+
+		fixed_paths: list[str] = []
+		for change in changes:
+			for bytes_rel in BYTES_BY_DFXML.get(os.path.basename(change["path"]), []):
+				normalized = normalize_fixed_path(f"{SHOWCASE_REPO_PREFIX}/{bytes_rel}")
+				if normalized and normalized not in fixed_paths:
+					fixed_paths.append(normalized)
+
+		module_context = ModuleContext(tdr_root=str(layout["current"]), region_code=SHOWCASE_REGION)
+		log("正在执行规则校验...")
+		validation = run_full_mvp_validations_optimized(
+			fixed_paths=fixed_paths,
+			local_root=str(layout["current"] / "ServerBytes"),
+			validation_config=validation_config,
+			package_files=[],
+			changeset_changes=changeset_changes,
+			module_context=module_context,
+		)
+		log("正在执行业务模块解读...")
+		try:
+			module_analysis = run_changeset_modules(change_set, validation_config, context=module_context)
+		except Exception as error:
+			module_analysis = {"status": "error", "message": str(error), "modules": [], "overview": {}}
+
+		files = [
+			{
+				"fixed_path": path,
+				"file_name": os.path.basename(path),
+				"directory": os.path.dirname(path),
+				"status": "packaged",
+				"size": 0,
+			}
+			for path in fixed_paths
+		]
+		report = {
+			"showcase": True,
+			"input": {
+				"region_filter": {},
+				"baseline_revision": baseline_revision,
+				"current_revision": current_revision,
+			},
+			"files": files,
+			"change_set": change_set,
+			"validation": validation,
+			"module_analysis": module_analysis,
+			"status": {"validation_status": "warning"},
+		}
+		summary = validation.get("summary", {}) if isinstance(validation, dict) else {}
+		module_overview = module_analysis.get("overview", {}) if isinstance(module_analysis, dict) else {}
+		activity_details, content_details = _module_detail_lists(module_analysis)
+		return {
+			"package_name": f"SHOWCASE_r{baseline_revision}_r{current_revision}.demo",
+			"package_id": f"showcase_r{baseline_revision}_r{current_revision}",
+			"tar_path": "",
+			"report_path": "",
+			"output_dir": str(root),
+			"md5": "showcase",
+			"success_count": len(files),
+			"failure_count": 0,
+			"skipped_count": 0,
+			"validation": {
+				"error_count": int(summary.get("error_count", 0) or 0),
+				"warning_count": int(summary.get("warning_count", 0) or 0),
+				"confirm_count": int(summary.get("confirm_count", 0) or 0),
+			},
+			"module_overview": module_overview if isinstance(module_overview, dict) else {},
+			"activity_details": activity_details,
+			"content_details": content_details,
+			"region_filter": {},
+			"report": report,
+			"can_archive": False,
+			"showcase": True,
+		}
+
+	def command_showcase_tables(self, payload: Mapping[str, object], _emit: EventCallback) -> dict[str, object]:
+		return {"tables": showcase_list_tables(self._showcase_root(payload))}
+
+	def command_showcase_sheets(self, payload: Mapping[str, object], _emit: EventCallback) -> dict[str, object]:
+		return {"sheets": showcase_list_sheets(self._showcase_root(payload), _string(payload.get("table")))}
+
+	def command_showcase_rows(self, payload: Mapping[str, object], _emit: EventCallback) -> dict[str, object]:
+		return showcase_list_rows(
+			self._showcase_root(payload),
+			_string(payload.get("table")),
+			_string(payload.get("sheet")),
+			keyword=_string(payload.get("keyword")),
+			offset=int(payload.get("offset") or 0),
+			limit=int(payload.get("limit") or 100),
+		)
+
+	def command_showcase_update_row(self, payload: Mapping[str, object], _emit: EventCallback) -> dict[str, object]:
+		changes = payload.get("changes")
+		if not isinstance(changes, dict) or not changes:
+			raise PackagingError("没有需要保存的字段变更。")
+		return showcase_update_row(
+			self._showcase_root(payload),
+			_string(payload.get("table")),
+			_string(payload.get("sheet")),
+			int(payload.get("row_index")),
+			changes,
+		)
+
+	def command_showcase_delete_row(self, payload: Mapping[str, object], _emit: EventCallback) -> dict[str, object]:
+		return showcase_delete_row(
+			self._showcase_root(payload),
+			_string(payload.get("table")),
+			_string(payload.get("sheet")),
+			int(payload.get("row_index")),
+		)
+
+	def command_showcase_add_row(self, payload: Mapping[str, object], _emit: EventCallback) -> dict[str, object]:
+		return showcase_add_row(
+			self._showcase_root(payload),
+			_string(payload.get("table")),
+			_string(payload.get("sheet")),
+			int(payload.get("row_index")),
+		)
 
 	def command_check_backend(self, payload: Mapping[str, object], _emit: EventCallback) -> dict[str, object]:
 		base_url = _string(payload.get("backend_url"))
@@ -596,6 +832,7 @@ class ElectronBridgeService:
 			"package_source": package_source,
 			"performance": performance if isinstance(performance, dict) else {},
 			"test_mode": test_mode,
+			"report": result.report,
 			"can_archive": not test_mode and result.failure_count == 0 and int(summary.get("error_count", 0) or 0) == 0,
 		}
 
