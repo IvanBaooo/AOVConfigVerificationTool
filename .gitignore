@@ -40,3 +40,6 @@ Thumbs.db
 
 # Local handover notes
 AOVAutoPacker_换机开发交接_*.md
+
+# Local-only reference docs (not published)
+docs/local/
