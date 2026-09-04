@@ -106,6 +106,16 @@ def sample_report() -> dict[str, object]:
 						"whitelisted_paths": ["/Taiwan/Databin/Server/Actor/Hero_MD5.txt"],
 					},
 				},
+				"hidden_item_listing": {
+					"id": "hidden-item-tab",
+					"name": "隐藏道具识别与单独标注",
+					"tables": ["道具信息表"],
+					"status": "passed",
+					"item_count": 0,
+					"warning_count": 0,
+					"items": [],
+					"warnings": [],
+				},
 				"skin_precheck": {
 					"status": "skipped",
 					"reason": "missing_check_window",
@@ -127,3 +137,11 @@ def sample_report() -> dict[str, object]:
 			"timestamp": "20260713153524",
 		},
 	}
+
+
+def check_entry(payload: dict[str, object], check_type: str) -> dict[str, object]:
+	"""从归档 payload 的 validation.checks 数组中按 type 取一条。"""
+	for entry in payload["validation"]["checks"]:
+		if entry["type"] == check_type:
+			return entry
+	raise AssertionError(f"check entry not found: {check_type}")

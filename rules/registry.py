@@ -29,6 +29,8 @@ from typing import Callable, Dict, List, Mapping, Optional
 #                              （在 validation_mvp.run_mvp_validations 中调度）
 #                 "package"   —— 包级校验，需要打包结果
 #                              （在 validation_full_mvp_optimized 中调度）
+# tables          可读表名归因（供"哪个表出问题最多"统计），
+#                 调度时随 id/name 一并注入规则结果 dict
 # trigger_paths   触发路径（写入 content_checks，供规则集覆盖）
 # applies_to      可选，适用场景标注（如 manual_bytes_list_only）
 # params          可选，默认参数（写入 content_checks）
@@ -44,6 +46,7 @@ _RULE_SPECS: List[Dict[str, object]] = [
         "description": "识别本次变更中「是否是隐藏道具」为真的道具行，提示与 QA 同步确认。",
         "default_enabled": True,
         "scope": "changeset",
+        "tables": ["道具信息表"],
         "trigger_paths": [
             "/Databin/Server/Item/SvrItem.bytes",
             "/Databin/Server/Item/SvrItem.xml",
@@ -65,6 +68,7 @@ _RULE_SPECS: List[Dict[str, object]] = [
                        "晚于活动结束自动通过，找不到关联活动转人工核对。",
         "default_enabled": True,
         "scope": "changeset",
+        "tables": ["道具信息表", "活动表"],
         "trigger_paths": [
             "/Databin/Server/Item/SvrItem.bytes",
             "/Databin/Server/Item/SvrItem.xml",
@@ -88,6 +92,7 @@ _RULE_SPECS: List[Dict[str, object]] = [
                        "新增皮肤上架不告警。",
         "default_enabled": True,
         "scope": "changeset",
+        "tables": ["英雄皮肤促销表"],
         "trigger_paths": [
             "/Xml/Garena/{region}/CommonCore/英雄皮肤促销表.dtxml",
             "/Databin/Server/Shop/SvrHeroSkinShop.xml",
@@ -111,6 +116,7 @@ _RULE_SPECS: List[Dict[str, object]] = [
                        "SVN 提交模式由提交校验覆盖，自动跳过。",
         "default_enabled": True,
         "scope": "package",
+        "tables": ["（包级）"],
         "trigger_paths": ["*"],
         "applies_to": "manual_bytes_list_only",
         "params": {"min_file_count": 1, "min_total_bytes": 1024},
@@ -204,6 +210,8 @@ def run_content_check(check: Mapping[str, object], **context: object) -> Dict[st
 
     按 check["type"] 找 spec，懒加载 runner，并按 runner 的实际签名
     从 context 中筛选所需参数传入（不同 runner 的参数集可以不同）。
+    runner 返回后把 spec 的 id/name（可被 check["name"] 覆盖）/tables
+    注入结果 dict，供归档契约与前端统计归因。
 
     context 约定可包含：fixed_paths, local_root, validation_config,
     changeset_changes, module_context, package_files。
@@ -221,7 +229,11 @@ def run_content_check(check: Mapping[str, object], **context: object) -> Dict[st
     accepted = inspect.signature(runner).parameters
     kwargs = {key: value for key, value in context.items() if key in accepted}
     kwargs["check"] = check
-    return runner(**kwargs)
+    result = runner(**kwargs)
+    result["id"] = spec["id"]
+    result["name"] = str(check.get("name") or spec.get("name") or spec["type"])
+    result["tables"] = list(spec.get("tables") or [])
+    return result
 
 
 def apply_rule_name_overrides(

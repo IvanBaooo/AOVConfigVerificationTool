@@ -16,11 +16,15 @@ class BackendArchiveContractSchemaTests(unittest.TestCase):
 		self.assertFalse(schema["additionalProperties"])
 		self.assertFalse(schema["$defs"]["commit_record"]["additionalProperties"])
 		self.assertFalse(schema["$defs"]["commit_warning"]["additionalProperties"])
-		self.assertFalse(schema["$defs"]["skin_precheck"]["additionalProperties"])
-		self.assertFalse(schema["$defs"]["skin_item"]["additionalProperties"])
+		self.assertFalse(schema["$defs"]["check_entry"]["additionalProperties"])
 		self.assertFalse(schema["$defs"]["file"]["additionalProperties"])
-		self.assertNotIn("svn_password", schema["$defs"]["skin_fields"]["propertyNames"]["enum"])
-		self.assertNotIn("local_path", schema["$defs"]["skin_fields"]["propertyNames"]["enum"])
+		self.assertNotIn("skin_precheck", schema["$defs"])
+		self.assertNotIn("skin_item", schema["$defs"])
+		self.assertNotIn("skin_fields", schema["$defs"])
+		self.assertEqual(
+			schema["properties"]["validation"]["required"],
+			["rule_set", "summary", "commit_record", "checks"],
+		)
 
 	def test_schema_and_builder_share_idempotency_pattern(self) -> None:
 		schema_path = Path(__file__).parent.parent / "schemas" / "aov-package-archive-v1-strict.schema.json"

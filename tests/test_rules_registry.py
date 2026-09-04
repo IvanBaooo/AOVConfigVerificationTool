@@ -26,11 +26,12 @@ from rules_fixtures import (
 
 class RegistryMetadataTests(unittest.TestCase):
     def test_all_specs_have_required_fields(self) -> None:
-        required = {"id", "type", "name", "description", "default_enabled", "scope", "trigger_paths"}
+        required = {"id", "type", "name", "description", "default_enabled", "scope", "tables", "trigger_paths"}
         for spec in _RULE_SPECS:
             self.assertTrue(required <= set(spec), f"{spec.get('id')} 缺字段: {required - set(spec)}")
             self.assertIn(spec["scope"], ("changeset", "package"))
             self.assertIn(":", str(spec["runner"]))
+            self.assertTrue(all(isinstance(t, str) and t for t in spec["tables"]))
 
     def test_ids_and_types_unique(self) -> None:
         ids = [spec["id"] for spec in _RULE_SPECS]
@@ -111,6 +112,41 @@ class RegistryDispatchTests(unittest.TestCase):
             )
         self.assertEqual("warning", result["status"])
         self.assertEqual(1, result["item_count"])
+
+    def test_dispatch_injects_spec_identity_and_tables(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tdr_root = Path(tmp)
+            write_item_dtxml(tdr_root, [
+                {"ID": "90001", "名称": "测试道具", "是否是隐藏道具": "1"},
+            ])
+            check = next(c for c in default_content_checks() if c["type"] == "hidden_item_listing")
+            result = run_content_check(
+                check,
+                fixed_paths=ITEM_TOUCH_PATHS,
+                local_root=str(tdr_root / "ServerBytes"),
+                validation_config=make_config(tdr_root),
+                changeset_changes=make_changeset("90001"),
+            )
+        self.assertEqual("hidden-item-tab", result["id"])
+        self.assertEqual("隐藏道具识别与单独标注", result["name"])
+        self.assertEqual(["道具信息表"], result["tables"])
+
+    def test_dispatch_prefers_check_name_override(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tdr_root = Path(tmp)
+            write_item_dtxml(tdr_root, [
+                {"ID": "90001", "名称": "测试道具", "是否是隐藏道具": "1"},
+            ])
+            check = next(c for c in default_content_checks() if c["type"] == "hidden_item_listing")
+            renamed = apply_rule_name_overrides([check], {"hidden-item-tab": "自定义隐藏道具检查"})[0]
+            result = run_content_check(
+                renamed,
+                fixed_paths=ITEM_TOUCH_PATHS,
+                local_root=str(tdr_root / "ServerBytes"),
+                validation_config=make_config(tdr_root),
+                changeset_changes=make_changeset("90001"),
+            )
+        self.assertEqual("自定义隐藏道具检查", result["name"])
 
 
 if __name__ == "__main__":

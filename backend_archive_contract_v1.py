@@ -206,6 +206,26 @@ def _validate_final_payload(payload: Mapping[str, Any]) -> None:
 		if warning_data.get("fixed_path"):
 			_validate_fixed_path(warning_data["fixed_path"], f"commit_record.warnings[{index}].fixed_path")
 
+	checks = validation.get("checks")
+	if not isinstance(checks, list):
+		raise ArchiveContractError("Expected check entry list: validation.checks")
+	for index, entry in enumerate(checks):
+		entry_data = _mapping(entry, f"validation.checks[{index}]")
+		entry_type = entry_data.get("type")
+		if not isinstance(entry_type, str) or not SAFE_ID_PATTERN.fullmatch(entry_type):
+			raise ArchiveContractError(f"Invalid check entry type: validation.checks[{index}].type")
+		if entry_data.get("status") not in {"passed", "warning", "error", "confirm", "skipped"}:
+			raise ArchiveContractError(f"Invalid check entry status: validation.checks[{index}].status")
+		for key in ("item_count", "warning_count"):
+			value = entry_data.get(key)
+			if type(value) is not int or value < 0:
+				raise ArchiveContractError(
+					f"Expected non-negative integer: validation.checks[{index}].{key}"
+				)
+		tables = entry_data.get("tables")
+		if not isinstance(tables, list) or any(not isinstance(table, str) for table in tables):
+			raise ArchiveContractError(f"Expected string list: validation.checks[{index}].tables")
+
 	for index, item in enumerate(payload.get("files", [])):
 		file_info = _mapping(item, f"payload.files[{index}]")
 		_validate_fixed_path(file_info.get("fixed_path"), f"files[{index}].fixed_path")

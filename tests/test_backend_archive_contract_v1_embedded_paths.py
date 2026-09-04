@@ -3,6 +3,7 @@ from __future__ import annotations
 import unittest
 
 from backend_archive_contract_v1 import ArchiveContractError, build_archive_record
+from archive_fixtures import check_entry
 from test_backend_archive_contract_v1 import final_sample_report
 
 
@@ -32,7 +33,7 @@ class BackendArchiveContractV1EmbeddedPathTests(unittest.TestCase):
 	def test_does_not_treat_https_url_as_drive_path(self) -> None:
 		payload = build_archive_record(self._report_with_skin_id("https://example.invalid/skin"))
 		self.assertEqual(
-			payload["validation"]["skin_precheck"]["items"][0]["id"],
+			check_entry(payload, "skin_precheck")["items"][0]["id"],
 			"https://example.invalid/skin",
 		)
 

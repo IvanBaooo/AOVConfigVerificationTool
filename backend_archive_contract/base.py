@@ -10,43 +10,22 @@ ARCHIVE_CONTRACT_VERSION = "1.0"
 ARCHIVE_RECORD_TYPE = "aov_package_archive"
 REGION_CODES = frozenset({"TW", "TH", "VN", "ID"})
 
+CHECK_DETAIL_LIST_LIMIT = 200
+CHECK_DETAIL_DENIED_KEYS = frozenset(
+	{
+		"svn_username",
+		"svn_password",
+		"svn_log_text",
+		"raw_line",
+		"local_path",
+		"local_root",
+	}
+)
+
 IDEMPOTENCY_PATTERN = re.compile(r"^[A-Za-z0-9._-]{1,128}$")
 MD5_PATTERN = re.compile(r"^[a-f0-9]{32}$")
 SHA256_PATTERN = re.compile(r"^[a-f0-9]{64}$")
 WINDOWS_ABSOLUTE_PATH_PATTERN = re.compile(r"(?i)(?:^|[\s(])(?:[a-z]:[\\/]|\\\\)")
-
-SKIN_FIELD_NAMES = frozenset(
-	{
-		"ID",
-		"英雄ID",
-		"英雄名称",
-		"皮肤ID",
-		"皮肤名称",
-		"促销特卖ID",
-		"上架时间",
-		"下架时间",
-		"售卖方式",
-		"是否可点券购买",
-		"点券价格",
-		"是否可皮肤点购买",
-		"皮肤点价格",
-		"是否可钻石购买",
-		"钻石价格",
-		"是否支持混合支付",
-		"是否在商店显示",
-		"促销标签",
-		"折扣比例",
-		"购买排序ID",
-		"排序不受动态规则影响",
-		"皮肤获取方式跳转入口",
-		"获取途径",
-		"促销特卖1",
-		"促销特卖2",
-		"促销特卖3",
-		"促销特卖4",
-		"促销特卖5",
-	}
-)
 
 
 class ArchiveContractError(ValueError):
@@ -168,12 +147,56 @@ def _safe_fixed_path(value: object, field: str) -> str:
 	return value
 
 
-def _allowlisted_skin_fields(value: object) -> dict[str, str]:
-	fields = _mapping(value)
+def _copy_check_detail(value: object, field: str) -> object:
+	if isinstance(value, Mapping):
+		result: dict[str, object] = {}
+		for key, item in value.items():
+			if not isinstance(key, str) or key in CHECK_DETAIL_DENIED_KEYS:
+				continue
+			result[key] = _copy_check_detail(item, f"{field}.{key}")
+		return result
+	if isinstance(value, list):
+		return [
+			_copy_check_detail(item, f"{field}[{index}]") for index, item in enumerate(value)
+		]
+	if value is None or isinstance(value, (str, bool, int, float)):
+		return value
+	raise ArchiveContractError(f"Unsupported value in check detail: {field}")
+
+
+def _copy_check_entry(check_type: object, value: object) -> dict[str, object]:
+	if not isinstance(check_type, str) or not check_type.strip():
+		raise ArchiveContractError("Check entry type must be non-empty text")
+	check = _mapping(value)
+	items = check.get("items", [])
+	warnings = check.get("warnings", [])
+	if not isinstance(items, list) or not isinstance(warnings, list):
+		raise ArchiveContractError(f"check entry items and warnings must be lists: {check_type}")
+
+	from rules.registry import spec_for_type
+
+	spec = spec_for_type(check_type)
+	name = _optional_text(check, "name")
+	if not name and spec is not None:
+		name = str(spec.get("name") or "")
+	tables: object = check.get("tables")
+	if tables is None:
+		tables = list(spec.get("tables") or []) if spec is not None else []
 	return {
-		key: item
-		for key, item in fields.items()
-		if key in SKIN_FIELD_NAMES and isinstance(item, str)
+		"type": check_type,
+		"name": name or check_type,
+		"status": _required_text(check, "status", f"checks.{check_type}.status"),
+		"item_count": _optional_integer(check, "item_count", f"checks.{check_type}.item_count"),
+		"warning_count": _optional_integer(check, "warning_count", f"checks.{check_type}.warning_count"),
+		"tables": _string_list(tables, f"checks.{check_type}.tables"),
+		"items": [
+			_copy_check_detail(item, f"checks.{check_type}.items")
+			for item in items[:CHECK_DETAIL_LIST_LIMIT]
+		],
+		"warnings": [
+			_copy_check_detail(warning, f"checks.{check_type}.warnings")
+			for warning in warnings[:CHECK_DETAIL_LIST_LIMIT]
+		],
 	}
 
 
@@ -208,96 +231,6 @@ def _copy_commit_warning(value: object) -> dict[str, object]:
 				raise ArchiveContractError(f"Expected positive revision: commit_warning.{key}")
 			result[key] = value_int
 	return result
-
-
-def _copy_skin_warning(value: object) -> dict[str, object]:
-	warning = _mapping(value)
-	result: dict[str, object] = {}
-	for key in ("type", "level", "id", "promo_id"):
-		text = _optional_text(warning, key)
-		if text:
-			result[key] = text
-	message = _public_message(warning.get("message"))
-	if message:
-		result["message"] = message
-	return result
-
-
-def _copy_skin_item(value: object) -> dict[str, object]:
-	item = _mapping(value)
-	result: dict[str, object] = {}
-	for key in (
-		"type",
-		"level",
-		"module",
-		"table",
-		"main_sheet",
-		"promo_sheet",
-		"id",
-		"hero_id",
-		"hero_name",
-		"skin_id",
-		"skin_name",
-	):
-		text = _optional_text(item, key)
-		if text:
-			result[key] = text
-
-	match_reason = _mapping(item.get("match_reason"))
-	if match_reason:
-		result["match_reason"] = {
-			"long_term_overlaps_window": _boolean_field(
-				match_reason, "long_term_overlaps_window", "skin_item.match_reason.long_term_overlaps_window"
-			),
-			"promotion_overlaps_window": _boolean_field(
-				match_reason, "promotion_overlaps_window", "skin_item.match_reason.promotion_overlaps_window"
-			),
-		}
-
-	long_term_status = _allowlisted_skin_fields(item.get("long_term_status"))
-	if long_term_status:
-		result["long_term_status"] = long_term_status
-
-	promotions = item.get("promotions", [])
-	if not isinstance(promotions, list):
-		raise ArchiveContractError("Expected list: skin_item.promotions")
-	result["promotions"] = []
-	for raw_promotion in promotions:
-		promotion = _mapping(raw_promotion)
-		result["promotions"].append(
-			{
-				"promo_id": _required_text(promotion, "promo_id", "skin_item.promotion.promo_id"),
-				"fields": _allowlisted_skin_fields(promotion.get("fields")),
-			}
-		)
-	return result
-
-
-def _copy_skin_precheck(value: object) -> dict[str, object]:
-	check = _mapping(value)
-	window = _mapping(check.get("check_window"))
-	source = _mapping(check.get("source"))
-	items = check.get("items", [])
-	warnings = check.get("warnings", [])
-	if not isinstance(items, list) or not isinstance(warnings, list):
-		raise ArchiveContractError("skin_precheck items and warnings must be lists")
-	return {
-		"status": _required_text(check, "status", "skin_precheck.status"),
-		"reason": _optional_text(check, "reason"),
-		"check_window": {
-			"start_time": _optional_text(window, "start_time"),
-			"end_time": _optional_text(window, "end_time"),
-		},
-		"source": {
-			"xml_exists": source.get("xml_exists") if type(source.get("xml_exists")) is bool else False,
-			"main_sheet": _optional_text(source, "main_sheet"),
-			"promo_sheet": _optional_text(source, "promo_sheet"),
-		},
-		"item_count": _optional_integer(check, "item_count", "skin_precheck.item_count"),
-		"warning_count": _optional_integer(check, "warning_count", "skin_precheck.warning_count"),
-		"items": [_copy_skin_item(item) for item in items],
-		"warnings": [_copy_skin_warning(warning) for warning in warnings],
-	}
 
 
 def _copy_files(value: object) -> list[dict[str, object]]:
@@ -473,7 +406,11 @@ def build_archive_record(report: Mapping[str, Any]) -> dict[str, object]:
 				],
 				"warnings": [_copy_commit_warning(warning) for warning in warnings],
 			},
-			"skin_precheck": _copy_skin_precheck(checks.get("skin_precheck")),
+			"checks": [
+				_copy_check_entry(check_type, check_value)
+				for check_type, check_value in checks.items()
+				if check_type != "commit_record"
+			],
 		},
 		"files": files,
 	}

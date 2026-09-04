@@ -123,7 +123,7 @@
     "validation": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["rule_set", "summary", "commit_record", "skin_precheck"],
+      "required": ["rule_set", "summary", "commit_record", "checks"],
       "properties": {
         "rule_set": {
           "type": "object",
@@ -150,7 +150,10 @@
           }
         },
         "commit_record": { "$ref": "#/$defs/commit_record" },
-        "skin_precheck": { "$ref": "#/$defs/skin_precheck" }
+        "checks": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/check_entry" }
+        }
       }
     },
     "files": {
@@ -230,103 +233,22 @@
         "warnings": { "type": "array", "items": { "$ref": "#/$defs/commit_warning" } }
       }
     },
-    "skin_fields": {
-      "type": "object",
-      "propertyNames": {
-        "enum": [
-          "ID", "英雄ID", "英雄名称", "皮肤ID", "皮肤名称", "促销特卖ID",
-          "上架时间", "下架时间", "售卖方式", "是否可点券购买", "点券价格",
-          "是否可皮肤点购买", "皮肤点价格", "是否可钻石购买", "钻石价格",
-          "是否支持混合支付", "是否在商店显示", "促销标签", "折扣比例",
-          "购买排序ID", "排序不受动态规则影响", "皮肤获取方式跳转入口", "获取途径",
-          "促销特卖1", "促销特卖2", "促销特卖3", "促销特卖4", "促销特卖5"
-        ]
-      },
-      "additionalProperties": { "type": "string" }
-    },
-    "skin_item": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "type": { "type": "string" },
-        "level": { "type": "string" },
-        "module": { "type": "string" },
-        "table": { "type": "string" },
-        "main_sheet": { "type": "string" },
-        "promo_sheet": { "type": "string" },
-        "id": { "type": "string" },
-        "hero_id": { "type": "string" },
-        "hero_name": { "type": "string" },
-        "skin_id": { "type": "string" },
-        "skin_name": { "type": "string" },
-        "match_reason": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": ["long_term_overlaps_window", "promotion_overlaps_window"],
-          "properties": {
-            "long_term_overlaps_window": { "type": "boolean" },
-            "promotion_overlaps_window": { "type": "boolean" }
-          }
-        },
-        "long_term_status": { "$ref": "#/$defs/skin_fields" },
-        "promotions": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "additionalProperties": false,
-            "required": ["promo_id", "fields"],
-            "properties": {
-              "promo_id": { "type": "string", "minLength": 1 },
-              "fields": { "$ref": "#/$defs/skin_fields" }
-            }
-          }
-        }
-      }
-    },
-    "skin_warning": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "type": { "type": "string" },
-        "level": { "type": "string" },
-        "id": { "type": "string" },
-        "promo_id": { "type": "string" },
-        "message": { "type": "string" }
-      }
-    },
-    "skin_precheck": {
+    "check_entry": {
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "status", "reason", "check_window", "source", "item_count",
-        "warning_count", "items", "warnings"
+        "type", "name", "status", "item_count",
+        "warning_count", "tables", "items", "warnings"
       ],
       "properties": {
-        "status": { "type": "string", "minLength": 1 },
-        "reason": { "type": "string" },
-        "check_window": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": ["start_time", "end_time"],
-          "properties": {
-            "start_time": { "type": "string" },
-            "end_time": { "type": "string" }
-          }
-        },
-        "source": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": ["xml_exists", "main_sheet", "promo_sheet"],
-          "properties": {
-            "xml_exists": { "type": "boolean" },
-            "main_sheet": { "type": "string" },
-            "promo_sheet": { "type": "string" }
-          }
-        },
+        "type": { "type": "string", "pattern": "^[A-Za-z0-9._-]{1,128}$" },
+        "name": { "type": "string", "minLength": 1 },
+        "status": { "enum": ["passed", "warning", "error", "confirm", "skipped"] },
         "item_count": { "$ref": "#/$defs/count" },
         "warning_count": { "$ref": "#/$defs/count" },
-        "items": { "type": "array", "items": { "$ref": "#/$defs/skin_item" } },
-        "warnings": { "type": "array", "items": { "$ref": "#/$defs/skin_warning" } }
+        "tables": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "items": { "type": "array", "maxItems": 200 },
+        "warnings": { "type": "array", "maxItems": 200 }
       }
     },
     "file": {

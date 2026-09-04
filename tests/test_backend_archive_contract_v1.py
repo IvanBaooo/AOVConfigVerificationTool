@@ -62,6 +62,24 @@ class BackendArchiveContractV1Tests(unittest.TestCase):
 				with self.assertRaises(ArchiveContractError):
 					build_archive_record(report)
 
+	def test_rejects_invalid_check_entries(self) -> None:
+		mutations = (
+			lambda report: report["validation"]["checks"].update({"bad type!": {"status": "passed"}}),
+			lambda report: report["validation"]["checks"]["skin_precheck"].update(
+				{"status": "unknown_status"}
+			),
+			lambda report: report["validation"]["checks"]["skin_precheck"].update({"item_count": -1}),
+			lambda report: report["validation"]["checks"]["skin_precheck"].update(
+				{"tables": "道具信息表"}
+			),
+		)
+		for mutate in mutations:
+			with self.subTest(mutate=mutate):
+				report = final_sample_report()
+				mutate(report)
+				with self.assertRaises(ArchiveContractError):
+					build_archive_record(report)
+
 	def test_rejects_unsafe_package_identity_and_windows_filenames(self) -> None:
 		for field, value in (
 			("package_id", "x" * 129),
