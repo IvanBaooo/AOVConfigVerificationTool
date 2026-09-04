@@ -10,7 +10,7 @@ from urllib.parse import urlencode, urlsplit
 from urllib.request import Request, urlopen
 
 from local_settings import default_settings_path
-from validation_rule_sets import (
+from rules.sets import (
 	RULE_SCHEMA_VERSION,
 	SUPPORTED_REGIONS,
 	ValidationRuleSetError,
@@ -38,7 +38,7 @@ def default_rule_cache_path() -> Path:
 	override = os.environ.get(RULE_CACHE_ENV, "").strip()
 	if override:
 		return Path(override).expanduser()
-	return default_settings_path().parent / "validation_rules.json"
+	return default_settings_path().parent / "rules" / "cached_rule_set.json"
 
 
 def built_in_rule_set(region_code: str) -> dict[str, object]:

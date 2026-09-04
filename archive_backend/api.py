@@ -8,7 +8,7 @@ from typing import Mapping
 from urllib.parse import parse_qs, unquote, urlsplit
 
 from backend_archive_contract_v1 import ARCHIVE_CONTRACT_VERSION
-from validation_rule_sets import (
+from rules.sets import (
 	IDENTIFIER_PATTERN,
 	SUPPORTED_REGIONS,
 	ValidationRuleSetError,

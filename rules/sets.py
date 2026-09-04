@@ -13,6 +13,15 @@ RULE_SCHEMA_VERSION = "1.0"
 SUPPORTED_REGIONS = ("TW", "TH", "VN", "ID")
 IDENTIFIER_PATTERN = re.compile(r"^[A-Za-z0-9._-]{1,64}$")
 
+SUPPORTED_CONTENT_CHECK_TYPES = (
+	"skin_sale_window",
+	"skin_sale_change_check",
+	"hidden_item_listing",
+	"expiry_time_cross_check",
+	"package_completeness",
+)
+CHECK_SEVERITIES = ("warning", "error", "confirm")
+
 
 class ValidationRuleSetError(ValueError):
 	pass
@@ -64,7 +73,8 @@ def _content_checks(value: object, field: str) -> list[dict[str, object]]:
 			raise ValidationRuleSetError(f"{item_field} must be an object.")
 		allowed = {
 			"id", "type", "enabled", "name", "dtxml_path", "main_sheet",
-			"promotion_sheet", "trigger_paths",
+			"promotion_sheet", "trigger_paths", "params", "applies_to",
+			"severity", "blocking", "source_incident", "verify",
 		}
 		if set(item) - allowed:
 			raise ValidationRuleSetError(f"{item_field} contains unsupported fields.")
@@ -76,15 +86,24 @@ def _content_checks(value: object, field: str) -> list[dict[str, object]]:
 			raise ValidationRuleSetError(f"{field} contains duplicate check id: {check_id}")
 		seen_ids.add(key)
 		check_type = _text(item.get("type"), f"{item_field}.type", maximum=64)
-		if check_type != "skin_sale_window":
+		if check_type not in SUPPORTED_CONTENT_CHECK_TYPES:
 			raise ValidationRuleSetError(f"{item_field}.type is unsupported: {check_type}")
 		enabled = item.get("enabled", True)
 		if not isinstance(enabled, bool):
 			raise ValidationRuleSetError(f"{item_field}.enabled must be a boolean.")
-		dtxml_path = normalize_policy_path(
-			_text(item.get("dtxml_path"), f"{item_field}.dtxml_path", maximum=512)
-		)
-		if not dtxml_path.endswith(".dtxml") or "/../" in f"{dtxml_path}/":
+		requires_dtxml = check_type == "skin_sale_window"
+		dtxml_value = item.get("dtxml_path")
+		if requires_dtxml:
+			dtxml_path = normalize_policy_path(
+				_text(dtxml_value, f"{item_field}.dtxml_path", maximum=512)
+			)
+		elif dtxml_value is None or (isinstance(dtxml_value, str) and not dtxml_value.strip()):
+			dtxml_path = ""
+		else:
+			dtxml_path = normalize_policy_path(
+				_text(dtxml_value, f"{item_field}.dtxml_path", maximum=512)
+			)
+		if dtxml_path and (not dtxml_path.endswith(".dtxml") or "/../" in f"{dtxml_path}/"):
 			raise ValidationRuleSetError(f"{item_field}.dtxml_path must identify a safe .dtxml file.")
 		trigger_value = item.get("trigger_paths", [])
 		if not isinstance(trigger_value, list) or not trigger_value or not all(isinstance(path, str) for path in trigger_value):
@@ -101,16 +120,53 @@ def _content_checks(value: object, field: str) -> list[dict[str, object]]:
 			if trigger_key not in seen_triggers:
 				seen_triggers.add(trigger_key)
 				trigger_paths.append(normalized)
-		checks.append({
+		if requires_dtxml:
+			main_sheet = _text(item.get("main_sheet"), f"{item_field}.main_sheet")
+			promotion_sheet = _text(item.get("promotion_sheet"), f"{item_field}.promotion_sheet")
+		else:
+			main_sheet = _optional_text(item.get("main_sheet"), f"{item_field}.main_sheet")
+			promotion_sheet = _optional_text(item.get("promotion_sheet"), f"{item_field}.promotion_sheet")
+		normalized: dict[str, object] = {
 			"id": check_id,
 			"type": check_type,
 			"enabled": enabled,
 			"name": _text(item.get("name"), f"{item_field}.name"),
-			"dtxml_path": dtxml_path,
-			"main_sheet": _text(item.get("main_sheet"), f"{item_field}.main_sheet"),
-			"promotion_sheet": _text(item.get("promotion_sheet"), f"{item_field}.promotion_sheet"),
 			"trigger_paths": trigger_paths,
-		})
+		}
+		if dtxml_path:
+			normalized["dtxml_path"] = dtxml_path
+		if main_sheet:
+			normalized["main_sheet"] = main_sheet
+		if promotion_sheet:
+			normalized["promotion_sheet"] = promotion_sheet
+		params = item.get("params")
+		if params is not None:
+			if not isinstance(params, Mapping):
+				raise ValidationRuleSetError(f"{item_field}.params must be an object.")
+			normalized["params"] = dict(params)
+		applies_to = item.get("applies_to")
+		if applies_to is not None:
+			normalized["applies_to"] = _text(applies_to, f"{item_field}.applies_to", maximum=128)
+		severity = item.get("severity")
+		if severity is not None:
+			severity_text = _text(severity, f"{item_field}.severity", maximum=16)
+			if severity_text not in CHECK_SEVERITIES:
+				raise ValidationRuleSetError(f"{item_field}.severity is unsupported: {severity_text}")
+			normalized["severity"] = severity_text
+		blocking = item.get("blocking")
+		if blocking is not None:
+			if not isinstance(blocking, bool):
+				raise ValidationRuleSetError(f"{item_field}.blocking must be a boolean.")
+			normalized["blocking"] = blocking
+		source_incident = item.get("source_incident")
+		if source_incident is not None:
+			normalized["source_incident"] = _optional_text(source_incident, f"{item_field}.source_incident")
+		verify = item.get("verify")
+		if verify is not None:
+			if not isinstance(verify, Mapping):
+				raise ValidationRuleSetError(f"{item_field}.verify must be an object.")
+			normalized["verify"] = dict(verify)
+		checks.append(normalized)
 	return checks
 
 def _rules(value: object, field: str) -> dict[str, object]:
