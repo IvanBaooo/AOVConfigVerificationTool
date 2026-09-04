@@ -305,7 +305,7 @@ class ArchiveRepositoryTests(unittest.TestCase):
 		first = self.payload()
 		checks = {entry["type"]: entry for entry in first["validation"]["checks"]}
 		checks["hidden_item_listing"].update({"status": "warning", "warning_count": 2})
-		checks["skin_precheck"].update(
+		checks["skin_sale_change_check"].update(
 			{"status": "confirm", "item_count": 3, "tables": ["英雄皮肤促销表"]}
 		)
 
@@ -316,7 +316,7 @@ class ArchiveRepositoryTests(unittest.TestCase):
 		second["release"]["region_dir"] = "Thailand"
 		second_checks = {entry["type"]: entry for entry in second["validation"]["checks"]}
 		second_checks["hidden_item_listing"].update({"status": "warning", "warning_count": 1})
-		second_checks["skin_precheck"].update(
+		second_checks["skin_sale_change_check"].update(
 			{"status": "error", "warning_count": 1, "item_count": 0, "tables": ["英雄皮肤促销表"]}
 		)
 
@@ -343,10 +343,10 @@ class ArchiveRepositoryTests(unittest.TestCase):
 		self.assertEqual(rules["hidden_item_listing"]["triggered_archives"], 2)
 		self.assertEqual(rules["hidden_item_listing"]["warning_count"], 3)
 		self.assertEqual(rules["hidden_item_listing"]["confirm_count"], 0)
-		self.assertEqual(rules["skin_precheck"]["triggered_archives"], 2)
-		self.assertEqual(rules["skin_precheck"]["warning_count"], 1)
-		self.assertEqual(rules["skin_precheck"]["confirm_count"], 3)
-		self.assertEqual(rules["skin_precheck"]["error_archives"], 1)
+		self.assertEqual(rules["skin_sale_change_check"]["triggered_archives"], 2)
+		self.assertEqual(rules["skin_sale_change_check"]["warning_count"], 1)
+		self.assertEqual(rules["skin_sale_change_check"]["confirm_count"], 3)
+		self.assertEqual(rules["skin_sale_change_check"]["error_archives"], 1)
 		triggered_order = [rule["triggered_archives"] for rule in stats["rules"]]
 		self.assertEqual(triggered_order, sorted(triggered_order, reverse=True))
 
@@ -358,13 +358,13 @@ class ArchiveRepositoryTests(unittest.TestCase):
 		first, second, legacy = self._rule_stats_payloads()
 		first["validation"]["acknowledgments"] = [
 			{
-				"type": "skin_precheck",
-				"name": "皮肤促销窗口预检",
+				"type": "skin_sale_change_check",
+				"name": "皮肤售卖方式变更校验",
 				"acknowledged_at": "2026-09-04T02:00:00Z",
 			},
 			{
-				"type": "skin_precheck",
-				"name": "皮肤促销窗口预检",
+				"type": "skin_sale_change_check",
+				"name": "皮肤售卖方式变更校验",
 				"acknowledged_at": "2026-09-04T02:01:00Z",
 			},
 		]
@@ -374,7 +374,7 @@ class ArchiveRepositoryTests(unittest.TestCase):
 		stats = self.repository.rule_trigger_stats()
 
 		rules = {rule["type"]: rule for rule in stats["rules"]}
-		self.assertEqual(rules["skin_precheck"]["acknowledged_count"], 2)
+		self.assertEqual(rules["skin_sale_change_check"]["acknowledged_count"], 2)
 		self.assertEqual(rules["hidden_item_listing"]["acknowledged_count"], 0)
 		self.assertEqual(stats["covered_archives"], 2)
 

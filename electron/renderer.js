@@ -406,9 +406,6 @@ function collectSettings() {
     package_region: state.region,
     enable_commit_check: $("#enable-commit-check").checked,
     enable_region_filter: $("#enable-region-filter").checked,
-    enable_skin_validation: false,
-    window_start: "",
-    window_end: "",
     commit_whitelist: $("#commit-whitelist").value,
     commit_high_risk: $("#commit-high-risk").value,
     backend_url: $("#backend-url").value.trim(),
@@ -784,7 +781,6 @@ function renderFileTable(files) {
 }
 
 const RULE_CHECK_LABELS = {
-  skin_precheck: "皮肤促销窗口预检",
   hidden_item_listing: "隐藏道具识别",
   expiry_time_cross_check: "有效期关联校验",
   skin_sale_change_check: "皮肤售卖方式校验",
@@ -792,12 +788,8 @@ const RULE_CHECK_LABELS = {
 };
 
 const RULE_REASON_LABELS = {
-  missing_check_window: "未配置检查窗口（设置页 05 打包策略可配）",
   no_rules: "未启用规则集",
-  missing_validation_config: "未启用内容校验",
-  content_check_disabled: "规则未启用",
   package_not_touch_item_module: "本次未涉及道具模块",
-  package_not_touch_skin_module: "本次未涉及皮肤模块",
   no_item_table_change: "本次提交未变更道具信息表",
   no_skin_table_change: "本次提交未变更皮肤上下架/促销表",
   changeset_unavailable: "ChangeSet 不可用，按「只校验提交内容」原则跳过",

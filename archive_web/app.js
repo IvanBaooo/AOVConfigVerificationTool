@@ -797,7 +797,6 @@ function renderDetail(archive, management = {}) {
   const ruleSet = validation.rule_set || {};
   const summary = validation.summary || {};
   const commit = validation.commit_record || {};
-  const skin = validation.skin_precheck || {};
   const files = Array.isArray(archive.files) ? archive.files : [];
   const currentRevisions = Array.isArray(release.current_revisions) ? release.current_revisions : [];
   const previousRevisions = Array.isArray(release.previous_external_revisions) ? release.previous_external_revisions : [];
@@ -894,8 +893,6 @@ function renderDetail(archive, management = {}) {
       </div>
       ${validationRow("提交记录", commit, `${commit.package_path_count || 0} 个包内路径，${commit.warning_count || 0} 个告警`)}
       ${describeWarnings(commit.warnings)}
-      ${validationRow("皮肤预检", skin, skin.reason || `${skin.item_count || 0} 个资源，${skin.warning_count || 0} 个告警`)}
-      ${describeWarnings(skin.warnings)}
     </section>
 
     <section class="detail-section">

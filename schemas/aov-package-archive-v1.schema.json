@@ -137,7 +137,7 @@
     "validation": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["rule_set", "summary", "commit_record", "skin_precheck"],
+      "required": ["rule_set", "summary", "commit_record"],
       "properties": {
         "rule_set": {
           "type": "object",
@@ -174,16 +174,6 @@
               "type": "array",
               "items": { "type": "object", "additionalProperties": true }
             }
-          }
-        },
-        "skin_precheck": {
-          "type": "object",
-          "additionalProperties": true,
-          "required": ["status", "items", "warnings"],
-          "properties": {
-            "status": { "type": "string" },
-            "items": { "type": "array" },
-            "warnings": { "type": "array" }
           }
         }
       }

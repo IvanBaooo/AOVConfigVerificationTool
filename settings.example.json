@@ -11,14 +11,11 @@
     "scope_roots": "/Taiwan",
     "package_version": "Beta54",
     "package_region": "TW",
-    "window_start": "",
-    "window_end": "",
     "commit_whitelist": "",
     "backend_url": "http://127.0.0.1:8780",
     "use_auth_cache": true,
     "enable_commit_check": true,
     "enable_region_filter": true,
-    "enable_skin_validation": false,
     "ftp_profiles": {
       "TW": {
         "host": "",

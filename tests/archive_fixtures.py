@@ -116,9 +116,9 @@ def sample_report() -> dict[str, object]:
 					"items": [],
 					"warnings": [],
 				},
-				"skin_precheck": {
+				"skin_sale_change_check": {
 					"status": "skipped",
-					"reason": "missing_check_window",
+					"reason": "no_skin_table_change",
 					"source": {
 						"dtxml": r"G:\Branches\secret\skin.dtxml",
 						"xml": r"G:\Branches\secret\skin.xml",

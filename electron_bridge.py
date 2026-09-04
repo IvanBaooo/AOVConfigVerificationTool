@@ -228,39 +228,8 @@ def build_validation_config(payload: Mapping[str, object], svn_log_text: str) ->
 			"svn_auth_cache": _boolean(payload.get("use_auth_cache"), True),
 			"region_code": region,
 		}
-	skin_validation_enabled = _boolean(payload.get("enable_skin_validation"), False)
-	if skin_validation_enabled:
-		start = _string(payload.get("window_start"))
-		end = _string(payload.get("window_end"))
-		if not start or not end:
-			raise PackagingError("Content validation requires a start and end time.")
-		config["check_window"] = {
-			"start_time": start,
-			"end_time": end,
-			"source": "electron_local",
-		}
-		if tdr_root:
-			config["tdr_root"] = tdr_root
 	if "content_checks" not in config:
-		content_checks = default_incident_content_checks()
-		if skin_validation_enabled:
-			# 保持皮肤预检原有行为：注入 content_checks 后需显式携带 skin 规则，
-			# 否则 validation_mvp 会以 content_check_disabled 跳过。
-			content_checks = [{
-				"id": "skin-sale-window",
-				"type": "skin_sale_window",
-				"enabled": True,
-				"name": "英雄皮肤上下架与促销关联",
-				"dtxml_path": "/Xml/Garena/{region}/CommonCore/英雄皮肤促销表.dtxml",
-				"main_sheet": "svr下发皮肤上下架表",
-				"promotion_sheet": "svr下发皮肤促销特卖",
-				"trigger_paths": [
-					"/英雄皮肤促销表.dtxml",
-					"/Databin/Server/Shop/SvrHeroSkinShop.xml",
-					"/Databin/Server/Shop/SvrHeroSkinShop.bytes",
-				],
-			}, *content_checks]
-		config["content_checks"] = content_checks
+		config["content_checks"] = default_incident_content_checks()
 	# 叠加本地规则开关（后端默认、本地叠加）：设置页禁用的规则本次不执行
 	content_checks_value = config.get("content_checks")
 	if isinstance(content_checks_value, list):

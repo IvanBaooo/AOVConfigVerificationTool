@@ -144,25 +144,18 @@ SvrHeroSkinShop.bytes -> 英雄皮肤促销表
 ### 表内容校验规则
 
 规则编辑器中的“表内容校验”与 SVN 路径映射、白名单使用同一版本。
-当前 MVP 支持 `skin_sale_window` 类型，执行内容包括：
-
-- 读取 `英雄皮肤促销表.dtxml`。
-- 检查长期上下架 Sheet 的上架、下架时间和售卖方式字段。
-- 根据 `促销特卖1-5` 关联促销 Sheet 的 `促销特卖ID`。
-- 检查短期促销时间窗口与关联记录是否存在。
-- 只在本次打包涉及任一 `trigger_paths` 时执行。
+当前支持的规则类型以 `rules/registry.py` 注册表为准（隐藏道具识别、
+道具有效期与活动时间关联校验、皮肤售卖方式变更校验、包完整性核对），
+规则只在本次打包涉及任一 `trigger_paths` 时执行。
 
 每条规则配置：
 
 ```json
 {
-  "id": "skin-sale-window",
-  "type": "skin_sale_window",
+  "id": "skin-sale-change-check",
+  "type": "skin_sale_change_check",
   "enabled": true,
-  "name": "英雄皮肤上下架与促销关联",
-  "dtxml_path": "/Xml/Garena/{region}/CommonCore/英雄皮肤促销表.dtxml",
-  "main_sheet": "svr下发皮肤上下架表",
-  "promotion_sheet": "svr下发皮肤促销特卖",
+  "name": "皮肤售卖方式变更校验",
   "trigger_paths": [
     "/Databin/Server/Shop/SvrHeroSkinShop.xml",
     "/Databin/Server/Shop/SvrHeroSkinShop.bytes"

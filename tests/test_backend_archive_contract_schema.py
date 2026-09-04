@@ -18,9 +18,6 @@ class BackendArchiveContractSchemaTests(unittest.TestCase):
 		self.assertFalse(schema["$defs"]["commit_warning"]["additionalProperties"])
 		self.assertFalse(schema["$defs"]["check_entry"]["additionalProperties"])
 		self.assertFalse(schema["$defs"]["file"]["additionalProperties"])
-		self.assertNotIn("skin_precheck", schema["$defs"])
-		self.assertNotIn("skin_item", schema["$defs"])
-		self.assertNotIn("skin_fields", schema["$defs"])
 		self.assertEqual(
 			schema["properties"]["validation"]["required"],
 			["rule_set", "summary", "commit_record", "checks"],

@@ -20,13 +20,10 @@
     "whitelist_paths": [],
     "content_checks": [
       {
-        "id": "skin-sale-window",
-        "type": "skin_sale_window",
+        "id": "skin-sale-change-check",
+        "type": "skin_sale_change_check",
         "enabled": true,
-        "name": "英雄皮肤上下架与促销关联",
-        "dtxml_path": "/Xml/Garena/{region}/CommonCore/英雄皮肤促销表.dtxml",
-        "main_sheet": "svr下发皮肤上下架表",
-        "promotion_sheet": "svr下发皮肤促销特卖",
+        "name": "皮肤售卖方式变更校验",
         "trigger_paths": [
           "/Databin/Server/Shop/SvrHeroSkinShop.xml",
           "/Databin/Server/Shop/SvrHeroSkinShop.bytes",

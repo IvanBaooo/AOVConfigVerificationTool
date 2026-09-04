@@ -289,21 +289,6 @@ class ElectronBridgeContentRuleTests(unittest.TestCase):
 		)
 		self.assertTrue(all(check["enabled"] for check in checks))
 
-	def test_skin_validation_keeps_skin_rule_first(self) -> None:
-		config = build_validation_config(
-			{
-				"region": "TW",
-				"enable_skin_validation": True,
-				"window_start": "20260701000000",
-				"window_end": "20260731235959",
-			},
-			"",
-		)
-
-		checks = config["content_checks"]
-		self.assertEqual("skin_sale_window", checks[0]["type"])
-		self.assertEqual("hidden-item-tab", checks[1]["id"])
-
 	def test_local_rule_switches_overlay_injected_defaults(self) -> None:
 		config = build_validation_config(
 			{

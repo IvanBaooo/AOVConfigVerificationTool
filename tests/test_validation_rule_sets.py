@@ -26,13 +26,10 @@ def sample_rule_set() -> dict[str, object]:
 			}],
 			"whitelist_paths": ["CommonIgnored.xml"],
 			"content_checks": [{
-				"id": "skin-sale-window",
-				"type": "skin_sale_window",
+				"id": "skin-sale-change-check",
+				"type": "skin_sale_change_check",
 				"enabled": True,
-				"name": "英雄皮肤上下架与促销关联",
-				"dtxml_path": "/Xml/Garena/{region}/CommonCore/英雄皮肤促销表.dtxml",
-				"main_sheet": "svr下发皮肤上下架表",
-				"promotion_sheet": "svr下发皮肤促销特卖",
+				"name": "皮肤售卖方式变更校验",
 				"trigger_paths": [
 					"/Databin/Server/Shop/SvrHeroSkinShop.xml",
 					"/Databin/Server/Shop/SvrHeroSkinShop.bytes",
@@ -90,7 +87,7 @@ class ValidationRuleSetTests(unittest.TestCase):
 		self.assertEqual("manual_bytes_list_only", checks[1]["applies_to"])
 		self.assertEqual({"min_file_count": 1, "min_total_bytes": 1024}, checks[1]["params"])
 
-	def test_non_skin_check_type_with_dtxml_path_is_optional_but_validated(self) -> None:
+	def test_check_type_with_dtxml_path_is_optional_but_validated(self) -> None:
 		rule_set = sample_rule_set()
 		rule_set["common"]["content_checks"] = [{
 			"id": "expiry-activity-cross-check",

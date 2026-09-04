@@ -95,7 +95,7 @@ class RulePullWiringTests(unittest.TestCase):
 		self.assertEqual("aov-main", rule_set["rule_set_id"])
 		self.assertEqual("2026.07.27.1", rule_set["version"])
 		# 后端规则的 content_checks/path_mappings/whitelist_paths 覆盖内置默认
-		self.assertEqual(["skin-sale-window"], [check["id"] for check in config["content_checks"]])
+		self.assertEqual(["skin-sale-change-check"], [check["id"] for check in config["content_checks"]])
 		commit_record = config["commit_record"]
 		self.assertEqual(["/CommonIgnored.xml", "/TwIgnored.xml"], commit_record["whitelist_paths"])
 		self.assertEqual("TW 活动表", commit_record["path_mappings"][0]["table_name"])
@@ -118,13 +118,13 @@ class RulePullWiringTests(unittest.TestCase):
 			config = self._run_pack(root, client, settings={
 				"region": "TW",
 				"backend_url": "http://127.0.0.1:8780",
-				"disabled_rule_ids": ["skin-sale-window"],
-				"rule_name_overrides": {"skin-sale-window": "皮肤窗口（本地改名）"},
+				"disabled_rule_ids": ["skin-sale-change-check"],
+				"rule_name_overrides": {"skin-sale-change-check": "皮肤售卖（本地改名）"},
 			})
 
 		check = config["content_checks"][0]
 		self.assertIs(check["enabled"], False)
-		self.assertEqual("皮肤窗口（本地改名）", check["name"])
+		self.assertEqual("皮肤售卖（本地改名）", check["name"])
 		self.assertEqual("remote", config["rule_set"]["source"])
 
 	def test_remote_failure_falls_back_to_local_cache(self) -> None:
@@ -138,7 +138,7 @@ class RulePullWiringTests(unittest.TestCase):
 
 		self.assertEqual("local_cache", config["rule_set"]["source"])
 		self.assertEqual("2026.07.27.1", config["rule_set"]["version"])
-		self.assertEqual(["skin-sale-window"], [check["id"] for check in config["content_checks"]])
+		self.assertEqual(["skin-sale-change-check"], [check["id"] for check in config["content_checks"]])
 
 	def test_offline_without_cache_uses_built_in_defaults(self) -> None:
 		with tempfile.TemporaryDirectory() as temporary_directory:

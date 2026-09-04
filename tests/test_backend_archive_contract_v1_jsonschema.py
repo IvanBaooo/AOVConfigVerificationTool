@@ -43,8 +43,8 @@ class BackendArchiveContractV1JsonSchemaTests(unittest.TestCase):
 		report = final_sample_report()
 		report["validation"]["acknowledgments"] = [
 			{
-				"type": "skin_precheck",
-				"name": "皮肤促销窗口预检",
+				"type": "skin_sale_change_check",
+				"name": "皮肤售卖方式变更校验",
 				"acknowledged_at": "2026-09-04T10:00:00+08:00",
 			}
 		]

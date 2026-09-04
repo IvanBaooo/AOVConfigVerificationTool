@@ -75,7 +75,7 @@ class ArchiveReviewMigrationTests(unittest.TestCase):
 				"legacy-passed",
 				{"validation": {"checks": [
 					{"type": "commit_record", "status": "passed"},
-					{"type": "skin_precheck", "status": "skipped"},
+					{"type": "skin_sale_change_check", "status": "skipped"},
 				]}},
 				"passed",
 			)

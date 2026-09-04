@@ -9,9 +9,9 @@ from backend_archive_contract_v1 import ArchiveContractError, build_archive_reco
 from test_backend_archive_contract_v1 import final_sample_report
 
 
-def report_with_skin_id(value: str) -> dict[str, object]:
+def report_with_check_item_id(value: str) -> dict[str, object]:
 	report = final_sample_report()
-	report["validation"]["checks"]["skin_precheck"].update(
+	report["validation"]["checks"]["skin_sale_change_check"].update(
 		{
 			"status": "confirm",
 			"item_count": 1,
@@ -43,7 +43,7 @@ class BackendArchiveContractV1ReviewBoundaryTests(unittest.TestCase):
 		for value in (r"\Users\admin\secret.xml", "//server/share/secret.xml"):
 			with self.subTest(value=value):
 				with self.assertRaisesRegex(ArchiveContractError, "Local absolute path"):
-					build_archive_record(report_with_skin_id(value))
+					build_archive_record(report_with_check_item_id(value))
 
 	def test_package_id_cannot_be_dot_path_segment(self) -> None:
 		for value in (".", ".."):

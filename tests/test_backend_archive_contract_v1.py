@@ -25,9 +25,9 @@ class BackendArchiveContractV1Tests(unittest.TestCase):
 		with self.assertRaisesRegex(ArchiveContractError, "count mismatch"):
 			build_archive_record(report)
 
-	def test_rejects_local_path_hidden_in_allowed_skin_value(self) -> None:
+	def test_rejects_local_path_hidden_in_allowed_check_value(self) -> None:
 		report = final_sample_report()
-		report["validation"]["checks"]["skin_precheck"].update(
+		report["validation"]["checks"]["skin_sale_change_check"].update(
 			{
 				"status": "confirm",
 				"item_count": 1,
@@ -65,11 +65,11 @@ class BackendArchiveContractV1Tests(unittest.TestCase):
 	def test_rejects_invalid_check_entries(self) -> None:
 		mutations = (
 			lambda report: report["validation"]["checks"].update({"bad type!": {"status": "passed"}}),
-			lambda report: report["validation"]["checks"]["skin_precheck"].update(
+			lambda report: report["validation"]["checks"]["skin_sale_change_check"].update(
 				{"status": "unknown_status"}
 			),
-			lambda report: report["validation"]["checks"]["skin_precheck"].update({"item_count": -1}),
-			lambda report: report["validation"]["checks"]["skin_precheck"].update(
+			lambda report: report["validation"]["checks"]["skin_sale_change_check"].update({"item_count": -1}),
+			lambda report: report["validation"]["checks"]["skin_sale_change_check"].update(
 				{"tables": "道具信息表"}
 			),
 		)
@@ -137,8 +137,8 @@ class BackendArchiveContractV1Tests(unittest.TestCase):
 		report = final_sample_report()
 		report["validation"]["acknowledgments"] = [
 			{
-				"type": "skin_precheck",
-				"name": "皮肤促销窗口预检",
+				"type": "skin_sale_change_check",
+				"name": "皮肤售卖方式变更校验",
 				"acknowledged_at": "2026-09-04T10:00:00+08:00",
 				"operator_note": "dropped",
 			},
@@ -151,8 +151,8 @@ class BackendArchiveContractV1Tests(unittest.TestCase):
 			payload["validation"]["acknowledgments"],
 			[
 				{
-					"type": "skin_precheck",
-					"name": "皮肤促销窗口预检",
+					"type": "skin_sale_change_check",
+					"name": "皮肤售卖方式变更校验",
 					"acknowledged_at": "2026-09-04T10:00:00+08:00",
 				},
 				{
@@ -165,10 +165,10 @@ class BackendArchiveContractV1Tests(unittest.TestCase):
 
 	def test_acknowledgments_reject_malformed_entries(self) -> None:
 		for acknowledgments in (
-			{"type": "skin_precheck"},
-			[{"type": "skin_precheck"}],
+			{"type": "skin_sale_change_check"},
+			[{"type": "skin_sale_change_check"}],
 			[{"type": "", "acknowledged_at": "2026-09-04T10:00:00Z"}],
-			[{"type": "skin_precheck", "acknowledged_at": " "}],
+			[{"type": "skin_sale_change_check", "acknowledged_at": " "}],
 		):
 			report = final_sample_report()
 			report["validation"]["acknowledgments"] = acknowledgments

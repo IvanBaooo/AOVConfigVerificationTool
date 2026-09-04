@@ -32,10 +32,9 @@ class BackendArchiveContractTests(unittest.TestCase):
 		payload = build_archive_record(sample_report())
 		validation = payload["validation"]
 
-		self.assertNotIn("skin_precheck", validation)
 		checks = validation["checks"]
 		self.assertEqual(
-			{"hidden_item_listing", "skin_precheck"},
+			{"hidden_item_listing", "skin_sale_change_check"},
 			{entry["type"] for entry in checks},
 		)
 		hidden = check_entry(payload, "hidden_item_listing")
@@ -46,12 +45,12 @@ class BackendArchiveContractTests(unittest.TestCase):
 		self.assertEqual("隐藏道具识别与单独标注", hidden["name"])
 		self.assertEqual(["道具信息表"], hidden["tables"])
 
-		# 皮肤预检降级为普通一条，专属字段（check_window/source）不再归档
-		skin = check_entry(payload, "skin_precheck")
+		# 规则专属字段（source 等）不归档，只保留通用条目字段
+		skin = check_entry(payload, "skin_sale_change_check")
 		self.assertEqual("skipped", skin["status"])
-		self.assertEqual([], skin["tables"])
+		self.assertEqual(["英雄皮肤促销表"], skin["tables"])
 		serialized = json.dumps(skin, ensure_ascii=False)
-		self.assertNotIn("check_window", serialized)
+		self.assertNotIn("reason", serialized)
 		self.assertNotIn("source", serialized)
 
 	def test_check_entry_falls_back_to_registry_metadata(self) -> None:
@@ -93,14 +92,14 @@ class BackendArchiveContractTests(unittest.TestCase):
 
 	def test_check_details_strip_sensitive_keys_recursively(self) -> None:
 		report = sample_report()
-		skin = report["validation"]["checks"]["skin_precheck"]
+		skin = report["validation"]["checks"]["skin_sale_change_check"]
 		skin.update(
 			{
 				"status": "confirm",
 				"item_count": 1,
 				"items": [
 					{
-						"type": "skin_precheck_confirm",
+						"type": "skin_sale_change_confirm",
 						"level": "confirm",
 						"table": "英雄皮肤促销表",
 						"id": "1001",

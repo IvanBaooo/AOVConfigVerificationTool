@@ -14,7 +14,6 @@ SUPPORTED_REGIONS = ("TW", "TH", "VN", "ID")
 IDENTIFIER_PATTERN = re.compile(r"^[A-Za-z0-9._-]{1,64}$")
 
 SUPPORTED_CONTENT_CHECK_TYPES = (
-	"skin_sale_window",
 	"skin_sale_change_check",
 	"hidden_item_listing",
 	"expiry_time_cross_check",
@@ -91,13 +90,8 @@ def _content_checks(value: object, field: str) -> list[dict[str, object]]:
 		enabled = item.get("enabled", True)
 		if not isinstance(enabled, bool):
 			raise ValidationRuleSetError(f"{item_field}.enabled must be a boolean.")
-		requires_dtxml = check_type == "skin_sale_window"
 		dtxml_value = item.get("dtxml_path")
-		if requires_dtxml:
-			dtxml_path = normalize_policy_path(
-				_text(dtxml_value, f"{item_field}.dtxml_path", maximum=512)
-			)
-		elif dtxml_value is None or (isinstance(dtxml_value, str) and not dtxml_value.strip()):
+		if dtxml_value is None or (isinstance(dtxml_value, str) and not dtxml_value.strip()):
 			dtxml_path = ""
 		else:
 			dtxml_path = normalize_policy_path(
@@ -120,12 +114,8 @@ def _content_checks(value: object, field: str) -> list[dict[str, object]]:
 			if trigger_key not in seen_triggers:
 				seen_triggers.add(trigger_key)
 				trigger_paths.append(normalized)
-		if requires_dtxml:
-			main_sheet = _text(item.get("main_sheet"), f"{item_field}.main_sheet")
-			promotion_sheet = _text(item.get("promotion_sheet"), f"{item_field}.promotion_sheet")
-		else:
-			main_sheet = _optional_text(item.get("main_sheet"), f"{item_field}.main_sheet")
-			promotion_sheet = _optional_text(item.get("promotion_sheet"), f"{item_field}.promotion_sheet")
+		main_sheet = _optional_text(item.get("main_sheet"), f"{item_field}.main_sheet")
+		promotion_sheet = _optional_text(item.get("promotion_sheet"), f"{item_field}.promotion_sheet")
 		normalized: dict[str, object] = {
 			"id": check_id,
 			"type": check_type,

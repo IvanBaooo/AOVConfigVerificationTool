@@ -434,10 +434,10 @@ class ArchiveApplicationTests(unittest.TestCase):
 		)
 
 		local_path = self.payload()
-		skin_entry = next(
-			entry for entry in local_path["validation"]["checks"] if entry["type"] == "skin_precheck"
+		check = next(
+			entry for entry in local_path["validation"]["checks"] if entry["type"] == "skin_sale_change_check"
 		)
-		skin_entry.update(
+		check.update(
 			{
 				"status": "confirm",
 				"item_count": 1,

@@ -4,7 +4,7 @@ import unittest
 
 from backend_archive_contract_v1 import ArchiveContractError, build_archive_record
 from archive_fixtures import check_entry
-from test_backend_archive_contract_v1_review_boundaries import report_with_skin_id
+from test_backend_archive_contract_v1_review_boundaries import report_with_check_item_id
 
 
 class BackendArchiveContractV1PathBypassTests(unittest.TestCase):
@@ -12,16 +12,16 @@ class BackendArchiveContractV1PathBypassTests(unittest.TestCase):
 		for value in ("C://secret/file.xml", "source=C://secret/file.xml"):
 			with self.subTest(value=value):
 				with self.assertRaisesRegex(ArchiveContractError, "Local absolute path"):
-					build_archive_record(report_with_skin_id(value))
+					build_archive_record(report_with_check_item_id(value))
 
 	def test_rejects_embedded_windows_root_path(self) -> None:
 		with self.assertRaisesRegex(ArchiveContractError, "Local absolute path"):
-			build_archive_record(report_with_skin_id(r"source=\Users\admin\secret.xml"))
+			build_archive_record(report_with_check_item_id(r"source=\Users\admin\secret.xml"))
 
 	def test_https_url_still_passes(self) -> None:
-		payload = build_archive_record(report_with_skin_id("https://example.invalid/skin"))
+		payload = build_archive_record(report_with_check_item_id("https://example.invalid/skin"))
 		self.assertEqual(
-			check_entry(payload, "skin_precheck")["items"][0]["id"],
+			check_entry(payload, "skin_sale_change_check")["items"][0]["id"],
 			"https://example.invalid/skin",
 		)
 

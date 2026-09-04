@@ -82,14 +82,14 @@ class IncidentRuleIntegrationTests(unittest.TestCase):
         self.assertEqual("warning", result["checks"]["hidden_item_listing"]["status"])
         self.assertGreaterEqual(result["summary"]["warning_count"], 1)
 
-    def test_run_mvp_validations_without_content_checks_keeps_legacy_shape(self) -> None:
+    def test_run_mvp_validations_without_content_checks_returns_empty_checks(self) -> None:
         result = run_mvp_validations(
             fixed_paths=ITEM_TOUCH_PATHS,
             local_root="/nonexistent",
             validation_config=None,
         )
-        self.assertEqual({"skin_precheck"}, set(result["checks"]))
-        self.assertEqual(1, result["summary"]["skipped_count"])
+        self.assertEqual(set(), set(result["checks"]))
+        self.assertEqual(0, result["summary"]["skipped_count"])
 
     def test_full_validations_run_completeness_in_manual_mode(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

@@ -21,8 +21,6 @@ STRING_FIELDS = (
 	"scope_roots",
 	"package_version",
 	"package_region",
-	"window_start",
-	"window_end",
 	"commit_whitelist",
 	"ftp_host",
 	"ftp_port",
@@ -35,7 +33,6 @@ BOOLEAN_FIELDS = (
 	"use_auth_cache",
 	"enable_commit_check",
 	"enable_region_filter",
-	"enable_skin_validation",
 	"ftp_passive",
 )
 

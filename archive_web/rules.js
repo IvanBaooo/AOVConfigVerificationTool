@@ -243,9 +243,7 @@ function validateDraft() {
       const idKey = id.toLowerCase(); if (idKey && contentIds.has(idKey)) errors.push(`${name}的规则 ID 重复。`); contentIds.add(idKey);
       if (!String(item.name || "").trim()) errors.push(`${name}缺少校验名称。`);
       const dtxmlPath = String(item.dtxml_path || "").trim();
-      if (!dtxmlPath.startsWith("/") || !dtxmlPath.endsWith(".dtxml") || dtxmlPath.includes("..")) errors.push(`${name}的 DTXML 路径无效。`);
-      if (!String(item.main_sheet || "").trim()) errors.push(`${name}缺少长期上下架 Sheet。`);
-      if (!String(item.promotion_sheet || "").trim()) errors.push(`${name}缺少促销特卖 Sheet。`);
+      if (dtxmlPath && (!dtxmlPath.startsWith("/") || !dtxmlPath.endsWith(".dtxml") || dtxmlPath.includes(".."))) errors.push(`${name}的 DTXML 路径无效。`);
       if (!Array.isArray(item.trigger_paths) || !item.trigger_paths.length) errors.push(`${name}至少需要一个触发文件。`);
       else if (item.trigger_paths.some(path => !String(path).trim().startsWith("/") || String(path).includes(".."))) errors.push(`${name}包含无效触发路径。`);
     }
@@ -265,18 +263,11 @@ function addWhitelist() { if (!ruleState.draft) return; activeScope().whitelist_
 function addContentCheck() {
   if (!ruleState.draft) return;
   activeScope().content_checks.push({
-    id: "skin-sale-window",
-    type: "skin_sale_window",
+    id: "",
+    type: "hidden_item_listing",
     enabled: true,
-    name: "英雄皮肤上下架与促销关联",
-    dtxml_path: "/Xml/Garena/{region}/CommonCore/英雄皮肤促销表.dtxml",
-    main_sheet: "svr下发皮肤上下架表",
-    promotion_sheet: "svr下发皮肤促销特卖",
-    trigger_paths: [
-      "/Databin/Server/Shop/SvrHeroSkinShop.xml",
-      "/Databin/Server/Shop/SvrHeroSkinShop.bytes",
-      "/Xml/Garena/{region}/CommonCore/英雄皮肤促销表.dtxml",
-    ],
+    name: "",
+    trigger_paths: ["/"],
   });
   renderRuleRows(); updateRuleSummary();
   ruleUi.contentRows.querySelector(".content-check-row:last-child input[data-field='id']")?.focus();
