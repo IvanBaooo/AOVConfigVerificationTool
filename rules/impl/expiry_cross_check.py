@@ -151,7 +151,7 @@ def run_expiry_cross_check(
 
     判定顺序（服务器时间直接比较，对每个关联活动独立判定，取最差结论）：
     1. expire_time 为空 → 通过
-    2. expire_time > 关联活动 end_time → 该活动通过
+    2. expire_time ≥ 关联活动 end_time → 该活动通过（等于结束时间视为可接受）
     3. expire_time ≤ 活动 start_time → 爆红告警（I7 精确模式）
     4. expire_time 落在活动期间内 → 爆红告警
     5. 活动缺少结束时间 → 转人工核对（confirm）
@@ -257,6 +257,7 @@ def run_expiry_cross_check(
                 "name": item_name,
                 "expire_time": raw_expiry,
                 "activity_id": activity_id,
+                "activity_end_time": "",
                 "message": f"道具 {item_id} 含有效期但关联链与人工排期均未找到对应活动，转人工核对。",
             })
             continue
@@ -269,8 +270,8 @@ def run_expiry_cross_check(
             if end_dt is None:
                 confirm_acts.append(candidate)
                 continue
-            if expire_dt > end_dt:
-                continue  # 判定 2：该活动通过
+            if expire_dt >= end_dt:
+                continue  # 判定 2：等于或晚于结束时间，该活动通过
             verdict = "expiry_before_activity_start" if (start_dt is None or expire_dt <= start_dt) else "expiry_within_activity_window"
             warn_acts.append((verdict, candidate))
 
@@ -283,6 +284,7 @@ def run_expiry_cross_check(
                 "name": item_name,
                 "expire_time": raw_expiry,
                 "activity_id": str(warn_acts[0][1]["activity_id"]),
+                "activity_end_time": str(warn_acts[0][1]["end_time"]),
                 "activities": [
                     {
                         "verdict": verdict,
@@ -294,7 +296,7 @@ def run_expiry_cross_check(
                     }
                     for verdict, cand in warn_acts
                 ],
-                "suggestion": "建议将 expire_time 调整为活动结束之后，或置空（不过期）。",
+                "suggestion": "建议将 expire_time 调整为活动结束时间或之后，或置空（不过期）。",
                 "message": (
                     f"道具 {item_id}（{item_name}）有效期 {raw_expiry} 早于等于活动开始时间，"
                     f"玩家将无法获得奖励（I7 模式）。命中活动："
@@ -313,10 +315,13 @@ def run_expiry_cross_check(
                 "name": item_name,
                 "expire_time": raw_expiry,
                 "activity_id": str(confirm_acts[0]["activity_id"]),
+                "activity_end_time": str(confirm_acts[0].get("end_time") or ""),
                 "activities": [
                     {
                         "activity_id": str(cand["activity_id"]),
                         "activity_name": str(cand["activity_name"]),
+                        "activity_start_time": str(cand["start_time"]),
+                        "activity_end_time": str(cand["end_time"]),
                         "sources": list(cand["sources"]),
                     }
                     for cand in confirm_acts
@@ -326,13 +331,15 @@ def run_expiry_cross_check(
                 + " 缺少结束时间，转人工核对。",
             })
         else:
-            # 所有关联活动均判定通过：有效期晚于活动结束时间
+            # 所有关联活动均判定通过：有效期等于或晚于活动结束时间
             passed_items.append({
                 "type": "expiry_after_activity_end",
                 "level": "passed",
                 "item_id": item_id,
                 "name": item_name,
                 "expire_time": raw_expiry,
+                "activity_id": str(candidates[0]["activity_id"]),
+                "activity_end_time": str(candidates[0]["end_time"]),
                 "activities": [
                     {
                         "activity_id": str(cand["activity_id"]),
@@ -355,7 +362,7 @@ def run_expiry_cross_check(
         "scope_ids": sorted(scope_ids) if scope_ids else [],
         "activity_resolution": activity_resolution,
         "activity_windows_loaded": len(windows),
-        "item_count": len(confirms),
+        "item_count": len(warnings) if warnings else len(confirms),
         "warning_count": len(warnings),
         "passed_count": len(passed_items),
         "passed_items": passed_items,

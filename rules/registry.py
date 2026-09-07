@@ -75,7 +75,7 @@ _RULE_SPECS: List[Dict[str, object]] = [
         "type": "expiry_time_cross_check",
         "name": "道具有效期与活动时间关联校验",
         "description": "变更道具的有效期与关联活动起止时间比对：早于活动开始或落在活动期间内告警，"
-                       "晚于活动结束自动通过，找不到关联活动转人工核对。",
+                       "等于或晚于活动结束自动通过，找不到关联活动转人工核对。",
         "default_enabled": True,
         "scope": "changeset",
         "tables": ["道具信息表", "活动表"],
@@ -85,21 +85,21 @@ _RULE_SPECS: List[Dict[str, object]] = [
             "/Databin/Server/Shop/",
             "/Databin/Server/Ilua/",
         ],
-        "runner": "rules.impl.expiry_cross_check:run_expiry_cross_check",
         "detail_columns": [
             {"key": "item_id", "label": "道具 ID"},
             {"key": "name", "label": "名称"},
             {"key": "expire_time", "label": "expire_time"},
+            {"key": "activity_end_time", "label": "活动结束时间"},
             {"key": "message", "label": "结论"},
         ],
+        "runner": "rules.impl.expiry_cross_check:run_expiry_cross_check",
     },
     {
         "id": "skin-sale-change-check",
         "type": "skin_sale_change_check",
         "name": "皮肤售卖方式变更校验",
         "description": "皮肤上下架/促销表变更驱动：售卖方式（点券/皮肤点/钻石/混合支付）任一翻转告警；"
-                       "点券价格改为低于 100 告警；删行告警；新增促销转人工确认并关联皮肤；"
-                       "新增皮肤上架不告警。",
+                       "点券价格改为低于 100 告警；删行告警；新增促销与新增皮肤上架不告警（记录关联皮肤）。",
         "default_enabled": True,
         "scope": "changeset",
         "tables": ["英雄皮肤促销表"],

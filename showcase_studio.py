@@ -66,7 +66,7 @@ SCENE_DESCRIPTIONS = [
     {"id": "expiry_conflict", "title": "有效期冲突", "description": "道具限时有效期落在关联活动期间内，命中「有效期关联校验」告警"},
     {"id": "skin_sale_flip", "title": "售卖方式翻转", "description": "皮肤「是否可点券购买」否→是，命中「皮肤售卖方式变更校验」告警"},
     {"id": "skin_low_price", "title": "低价风险", "description": "皮肤点券价格改为 60（<100），命中低价告警"},
-    {"id": "skin_promo_add", "title": "新增促销", "description": "新增一条促销并关联皮肤，转人工确认"},
+    {"id": "skin_promo_add", "title": "新增促销", "description": "新增一条促销并关联皮肤，按约定不告警（通过级记录）"},
     {"id": "skin_row_delete", "title": "删除促销行", "description": "删除一条促销特卖行，命中删行告警"},
     {"id": "commit_gap", "title": "间隔遗漏", "description": "合成 4 条未打入包的提交：Hero_MD5 ×2（白名单豁免）+ ResSvr2CltIluaCfg（高危置顶）"},
 ]

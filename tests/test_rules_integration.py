@@ -14,8 +14,38 @@ from rules_fixtures import (
     make_config,
     write_item_dtxml,
 )
-from validation_full_mvp_optimized import run_full_mvp_validations_optimized
+from validation_full_mvp_optimized import _merge_summary, run_full_mvp_validations_optimized
 from validation_mvp import run_mvp_validations
+
+
+class SummaryItemCountTests(unittest.TestCase):
+    """汇总口径：按 check 的 status 对应 level 计明细条目数，缺失/为 0 按 1 条计。"""
+
+    def _merge(self, *extras: dict[str, object]) -> dict[str, int]:
+        base = {"summary": {"error_count": 0, "warning_count": 0, "confirm_count": 0, "skipped_count": 0}}
+        return _merge_summary(base, *extras)
+
+    def test_confirm_check_counts_item_count(self) -> None:
+        summary = self._merge({"status": "confirm", "item_count": 8})
+        self.assertEqual(8, summary["confirm_count"])
+
+    def test_warning_check_counts_detail_items_not_aggregate_warnings(self) -> None:
+        summary = self._merge({"status": "warning", "item_count": 2, "warning_count": 1})
+        self.assertEqual(2, summary["warning_count"])
+
+    def test_warning_check_without_item_count_uses_warning_count(self) -> None:
+        summary = self._merge({"status": "warning", "warning_count": 3})
+        self.assertEqual(3, summary["warning_count"])
+
+    def test_missing_item_count_falls_back_to_one(self) -> None:
+        summary = self._merge({"status": "confirm"}, {"status": "confirm", "item_count": 0})
+        self.assertEqual(2, summary["confirm_count"])
+
+    def test_passed_and_skipped_do_not_inflate_buckets(self) -> None:
+        summary = self._merge({"status": "passed", "item_count": 5}, {"status": "skipped"})
+        self.assertEqual(0, summary["warning_count"])
+        self.assertEqual(0, summary["confirm_count"])
+        self.assertEqual(1, summary["skipped_count"])
 
 
 class IncidentRuleSetSchemaTests(unittest.TestCase):

@@ -85,8 +85,8 @@ def run_skin_sale_change_check(
     - modified：售卖方式 4 列（是否可点券购买/皮肤点/钻石/混合支付）任一变更
       → 告警 + 人工核对；点券价格变更且改后值 < 100 → 低价告警；
       其余字段变更 → 通过级记录。
-    - added：上下架表新增皮肤不告警（通过级记录）；促销表新增促销转人工核对，
-      并按皮肤 ID 关联上下架快照取皮肤名。
+    - added：上下架表新增皮肤、促销表新增促销均不告警（通过级记录），
+      促销按皮肤 ID 关联上下架快照取皮肤名。
     - deleted：两个表的删行均告警。
     """
     if changeset_changes is None:
@@ -147,7 +147,6 @@ def run_skin_sale_change_check(
         return name
 
     warnings: List[Dict[str, object]] = []
-    confirms: List[Dict[str, object]] = []
     passed_items: List[Dict[str, object]] = []
 
     for change in matched:
@@ -170,15 +169,15 @@ def run_skin_sale_change_check(
         if change_type == "added":
             if sheet == SKIN_PROMO_SHEET:
                 promo_id = str(row.get(PROMO_ID_COLUMN) or "").strip()
-                confirms.append({
+                passed_items.append({
                     "type": "skin_promo_added",
-                    "level": "confirm",
+                    "level": "passed",
                     "skin_id": skin_id,
                     "skin_name": skin_name,
                     "sheet": sheet_label,
                     "change_type_label": "新增",
                     "change_summary": f"新增促销 {promo_id}" if promo_id else "新增促销",
-                    "message": f"新增促销 {promo_id} 关联{skin_display}，请与皮肤配置一并人工确认。",
+                    "message": f"新增促销 {promo_id} 关联{skin_display}，按约定无需告警。",
                 })
             else:
                 passed_items.append({
@@ -259,17 +258,18 @@ def run_skin_sale_change_check(
             "message": f"{display}变更未涉及售卖方式调整/低价风险。",
         })
 
-    status = "warning" if warnings else ("confirm" if confirms else "passed")
+    status = "warning" if warnings else "passed"
     return {
         "status": status,
         "rule_id": check.get("id", "skin-sale-change-check"),
         "scope": "changeset",
         "changed_count": len(matched),
+        "item_count": len(warnings),
         "warning_count": len(warnings),
         "passed_count": len(passed_items),
         "catalog_loaded": len(catalog),
         "catalog_error": catalog_error,
         "passed_items": passed_items,
-        "items": warnings + confirms,
+        "items": warnings,
         "warnings": warnings,
     }

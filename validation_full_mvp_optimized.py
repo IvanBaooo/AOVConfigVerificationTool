@@ -6,7 +6,7 @@ from svn_commit_validation_optimized import (
 	build_commit_high_risk_check,
 	run_commit_record_check_optimized,
 )
-from validation_mvp import run_mvp_validations
+from validation_mvp import _summary_contribution, run_mvp_validations
 
 
 def _empty_summary() -> Dict[str, int]:
@@ -28,15 +28,11 @@ def _merge_summary(base: Dict[str, object], *extra_results: Dict[str, object]) -
 	for extra in extra_results:
 		if not isinstance(extra, dict):
 			continue
-		status = str(extra.get("status") or "")
-		if status == "error":
-			summary["error_count"] += 1
-		elif status == "warning":
-			summary["warning_count"] += int(extra.get("warning_count", 0) or 0) or 1
-		elif status == "confirm":
-			summary["confirm_count"] += int(extra.get("item_count", 0) or 0) or 1
-		elif status == "skipped":
-			summary["skipped_count"] += 1
+		error, warning, confirm, skipped = _summary_contribution(extra)
+		summary["error_count"] += error
+		summary["warning_count"] += warning
+		summary["confirm_count"] += confirm
+		summary["skipped_count"] += skipped
 	return summary
 
 

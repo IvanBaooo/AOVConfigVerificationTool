@@ -47,6 +47,17 @@ class ExpiryCrossCheckTests(unittest.TestCase):
         )
         self.assertEqual("warning", result["status"])
         self.assertEqual("expiry_within_activity_window", result["warnings"][0]["type"])
+        self.assertEqual("20260615000000", result["warnings"][0]["activity_end_time"])
+
+    def test_expiry_equal_activity_end_passes(self) -> None:
+        result = self._run(
+            [{"ID": "30006", "名称": "道具", "活动ID": "act1", "限时道具有效期": "20260615000000"}],
+            {"act1": {"start_time": "20260515000000", "end_time": "20260615000000"}},
+        )
+        self.assertEqual("passed", result["status"])
+        self.assertEqual([], result["warnings"])
+        self.assertEqual(1, result["checked_count"])
+        self.assertEqual("20260615000000", result["passed_items"][0]["activity_end_time"])
 
     def test_expiry_empty_or_after_end_passes(self) -> None:
         result = self._run(

@@ -92,14 +92,28 @@ def resolve_rule_dtxml_path(tdr_root: str, relative_path: str, region_code: str)
 	return resolved_path
 
 
-def _summary_contribution(result: Dict[str, object]) -> Tuple[int, int, int, int]:
-	error = 1 if result.get("status") == "error" else 0
-	warning = int(result.get("warning_count", 0) or 0)
+def _status_item_count(result: Dict[str, object]) -> int:
+	item_count = result.get("item_count")
+	if isinstance(item_count, int) and not isinstance(item_count, bool) and item_count > 0:
+		return item_count
 	if result.get("status") == "warning":
-		warning += 1
-	confirm = int(result.get("item_count", 0) or 0)
-	skipped = 1 if result.get("status") == "skipped" else 0
-	return error, warning, confirm, skipped
+		warning_count = result.get("warning_count")
+		if isinstance(warning_count, int) and not isinstance(warning_count, bool) and warning_count > 0:
+			return warning_count
+	return 1
+
+
+def _summary_contribution(result: Dict[str, object]) -> Tuple[int, int, int, int]:
+	status = result.get("status")
+	if status == "error":
+		return _status_item_count(result), 0, 0, 0
+	if status == "warning":
+		return 0, _status_item_count(result), 0, 0
+	if status == "confirm":
+		return 0, 0, _status_item_count(result), 0
+	if status == "skipped":
+		return 0, 0, 0, 1
+	return 0, 0, 0, 0
 
 
 def run_mvp_validations(

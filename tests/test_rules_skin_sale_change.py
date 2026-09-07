@@ -41,6 +41,7 @@ class SkinSaleChangeCheckTests(unittest.TestCase):
                 "changed_fields": ["是否可点券购买"],
             }])
         self.assertEqual("warning", result["status"])
+        self.assertEqual(1, result["item_count"])
         self.assertEqual("skin_sale_mode_changed", result["warnings"][0]["type"])
         self.assertIn("是否可点券购买", result["warnings"][0]["change_summary"])
 
@@ -84,7 +85,7 @@ class SkinSaleChangeCheckTests(unittest.TestCase):
         self.assertEqual([], result["items"])
         self.assertEqual(1, result["passed_count"])
 
-    def test_promo_added_confirm_with_linked_skin_name(self) -> None:
+    def test_promo_added_passes_with_linked_skin_name(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tdr_root = Path(tmp)
             # 促销 sheet 的「皮肤ID」引用上下架 sheet 的行 ID（51015），
@@ -97,12 +98,15 @@ class SkinSaleChangeCheckTests(unittest.TestCase):
             result = self._run(tdr_root, [{
                 "sheet": SKIN_PROMO_SHEET, "change_type": "added", "after": after,
             }])
-        self.assertEqual("confirm", result["status"])
+        self.assertEqual("passed", result["status"])
+        self.assertEqual(0, result["item_count"])
         self.assertEqual([], result["warnings"])
-        confirm = result["items"][0]
-        self.assertEqual("skin_promo_added", confirm["type"])
-        self.assertEqual("安奈特-好运信使", confirm["skin_name"])
-        self.assertIn("510152", confirm["message"])
+        self.assertEqual([], result["items"])
+        self.assertEqual(1, result["passed_count"])
+        passed = result["passed_items"][0]
+        self.assertEqual("skin_promo_added", passed["type"])
+        self.assertEqual("安奈特-好运信使", passed["skin_name"])
+        self.assertIn("510152", passed["message"])
 
     def test_deleted_row_warns(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

@@ -43,3 +43,6 @@ AOVAutoPacker_换机开发交接_*.md
 
 # Local-only reference docs (not published)
 docs/local/
+
+# 规则集运行时缓存
+rules/cached_rule_set.json
