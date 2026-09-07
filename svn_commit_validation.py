@@ -309,6 +309,7 @@ def run_commit_record_check(
 		return {
 			"status": "skipped",
 			"reason": "commit_record_check_disabled",
+			"reason_label": "提交记录校验未启用",
 			"warnings": [],
 		}
 
@@ -338,6 +339,7 @@ def run_commit_record_check(
 		return {
 			"status": "error",
 			"reason": "invalid_revision_spec",
+			"reason_label": "revision 表达式无效",
 			"message": str(err),
 			"warnings": [],
 		}
@@ -346,6 +348,7 @@ def run_commit_record_check(
 		return {
 			"status": "error",
 			"reason": "missing_current_revision_spec",
+			"reason_label": "缺少本次 revision",
 			"message": "选择 revision 输入方式时必须填写本次打包 revision。",
 			"warnings": [],
 		}
@@ -354,6 +357,7 @@ def run_commit_record_check(
 		return {
 			"status": "skipped",
 			"reason": "manual_file_list_without_revision_spec",
+			"reason_label": "手动文件列表未提供本次 revision",
 			"input_method": input_method,
 			"input_method_label": "粘贴指定 SVN 文件列表",
 			"message": "本次使用手动粘贴文件列表，未提供本次 revision，提交记录差异校验跳过；报告已标注输入方式。",

@@ -93,6 +93,7 @@ def run_skin_sale_change_check(
         return {
             "status": "skipped",
             "reason": "changeset_unavailable",
+            "reason_label": "ChangeSet 不可用，按「只校验提交内容」原则跳过",
             "scope": "changeset",
             "message": "DTXML ChangeSet 不可用，为遵循「只校验提交内容」原则，本规则跳过。",
             "items": [],
@@ -104,6 +105,7 @@ def run_skin_sale_change_check(
         return {
             "status": "skipped",
             "reason": "no_skin_table_change",
+            "reason_label": "本次提交未变更皮肤上下架/促销表",
             "scope": "changeset",
             "items": [],
             "warnings": [],

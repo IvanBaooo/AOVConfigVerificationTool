@@ -14,6 +14,7 @@ from electron_bridge import (
 	renderer_settings,
 )
 from local_settings import save_local_settings
+from rules.registry import all_rule_specs
 from svn_pack_source import PackSourceInspection
 
 
@@ -284,7 +285,7 @@ class ElectronBridgeContentRuleTests(unittest.TestCase):
 
 		checks = config["content_checks"]
 		self.assertEqual(
-			["hidden-item-tab", "expiry-activity-cross-check", "skin-sale-change-check", "package-completeness-manual"],
+			[spec["id"] for spec in all_rule_specs()],
 			[check["id"] for check in checks],
 		)
 		self.assertTrue(all(check["enabled"] for check in checks))
@@ -313,7 +314,7 @@ class ElectronBridgeContentRuleTests(unittest.TestCase):
 
 		rules = result["rules"]
 		self.assertEqual(
-			["hidden-item-tab", "expiry-activity-cross-check", "skin-sale-change-check", "package-completeness-manual"],
+			[spec["id"] for spec in all_rule_specs()],
 			[spec["id"] for spec in rules],
 		)
 		self.assertTrue(all("runner" not in spec for spec in rules))

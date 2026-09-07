@@ -9,6 +9,7 @@ from typing import Mapping
 from urllib.parse import parse_qs, unquote, urlsplit
 
 from backend_archive_contract_v1 import ARCHIVE_CONTRACT_VERSION
+from rules.registry import all_rule_specs
 from rules.sets import (
 	IDENTIFIER_PATTERN,
 	SUPPORTED_REGIONS,
@@ -111,6 +112,13 @@ class ArchiveApplication:
 
 		if method == "GET" and path == "/api/v1/validation-rules/latest":
 			return self._latest_validation_rules(parsed.query)
+		if method == "GET" and path == "/api/v1/validation-rule-catalog":
+			return ApiResponse(200, {
+				"checks": [
+					{"type": str(spec["type"]), "name": str(spec.get("name") or "")}
+					for spec in all_rule_specs()
+				],
+			})
 		if method == "GET" and path == "/api/v1/validation-rule-sets":
 			return self._list_validation_rule_sets(parsed.query)
 		rule_detail_prefix = "/api/v1/validation-rule-sets/"
@@ -145,7 +153,7 @@ class ArchiveApplication:
 			if method != "GET":
 				return _error(405, "method_not_allowed", "Only GET is allowed.")
 			return self._latest_release_baseline(parsed.query)
-		if path == "/api/v1/validation-rules/latest" or path.startswith(rule_detail_prefix):
+		if path == "/api/v1/validation-rules/latest" or path == "/api/v1/validation-rule-catalog" or path.startswith(rule_detail_prefix):
 			return _error(405, "method_not_allowed", "Only GET is allowed.")
 		if path == "/api/v1/package-archives":
 			if method == "POST":

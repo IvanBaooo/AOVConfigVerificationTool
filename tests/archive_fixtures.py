@@ -119,6 +119,7 @@ def sample_report() -> dict[str, object]:
 				"skin_sale_change_check": {
 					"status": "skipped",
 					"reason": "no_skin_table_change",
+					"reason_label": "本次提交未变更皮肤上下架/促销表",
 					"source": {
 						"dtxml": r"G:\Branches\secret\skin.dtxml",
 						"xml": r"G:\Branches\secret\skin.xml",

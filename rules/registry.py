@@ -1,13 +1,19 @@
 """内容校验规则注册表（Rule Registry）。
 
-所有「03 规则校验」区块的内容校验规则都在这里注册。新增规则只需：
-1. 实现一个 runner 函数（签名见文件底部说明）
+所有「03 规则校验」区块的内容校验规则都在这里注册。新增规则只需两步：
+1. rules/impl/ 新建实现文件，写一个 runner 函数（签名见 run_content_check 说明）
 2. 在 _RULE_SPECS 里加一条 spec
 
-调度、默认规则列表、设置页开关、前端通用渲染全部从本注册表自动派生。
+其余全部从本注册表自动派生，零额外触点：
+- rules.sets.SUPPORTED_CONTENT_CHECK_TYPES（规则集 type 白名单）
+- 默认规则列表 / 设置页开关 / 调度（run_mvp_validations、run_full_mvp_validations_optimized）
+- 前端规则行展示名（spec.name）、通用明细表（spec.detail_columns）
+- 归档后端规则目录（GET /api/v1/validation-rule-catalog）
 
-注意：若新增规则的 type 不在 rules.sets.SUPPORTED_CONTENT_CHECK_TYPES
-白名单内，且希望归档后端能下发该规则配置，需要同步在白名单中补充该 type。
+注意：commit_high_risk_confirm 是提交记录驱动的特殊 check，
+由 svn_commit_validation_optimized 管道直接注入（含 name），不在本注册表内。
+其高危名单（commit_record.high_risk_paths）来自规则集下发与本地设置页的并集，
+见 electron_bridge._apply_rule_set。
 """
 from __future__ import annotations
 
@@ -37,6 +43,10 @@ from typing import Callable, Dict, List, Mapping, Optional
 # runner          "module:function" 懒加载引用，避免模块间循环依赖
 # detail_columns  可选，前端通用明细表的列声明 [{"key", "label"}]；
 #                 未声明时前端按结果 items 第一条的键自动推导
+#
+# runner 结果 dict 约定：status/reason/items/warnings 之外，凡产出
+# reason（机器可读跳过/错误码）必须同时产出 reason_label（中文人类可读
+# 文案），前端直接展示 reason_label，不维护 reason→文案映射表。
 
 _RULE_SPECS: List[Dict[str, object]] = [
     {
@@ -140,7 +150,7 @@ def spec_for_type(check_type: object) -> Optional[Dict[str, object]]:
 
 
 def registered_check_types() -> List[str]:
-    """已注册的规则 type 列表（与 rules.sets 白名单对齐用）。"""
+    """已注册的规则 type 列表（rules.sets 白名单由此派生）。"""
     return [str(spec["type"]) for spec in _RULE_SPECS]
 
 
@@ -221,6 +231,7 @@ def run_content_check(check: Mapping[str, object], **context: object) -> Dict[st
         return {
             "status": "skipped",
             "reason": "unknown_check_type",
+            "reason_label": "未注册的规则类型",
             "message": f"未注册的规则类型：{check.get('type')}",
             "items": [],
             "warnings": [],

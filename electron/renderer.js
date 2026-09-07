@@ -233,10 +233,10 @@ function ruleSpecFor(key) {
   return state.validationRules.find((spec) => spec.type === key) || null;
 }
 
-function ruleLabel(key) {
+function ruleLabel(key, result) {
   const spec = ruleSpecFor(key);
   if (spec && state.ruleNameOverrides[spec.id]) return state.ruleNameOverrides[spec.id];
-  return (spec && spec.name) || RULE_CHECK_LABELS[key] || key;
+  return (spec && spec.name) || (result && result.name) || key;
 }
 
 function ruleOrderBadge(key) {
@@ -245,7 +245,7 @@ function ruleOrderBadge(key) {
 }
 
 // ---- mac 风格列表编辑器（白名单/高危名单）：+ 添加、− 删除、双击编辑 ----
-// 数据仍落在隐藏 textarea（每行一条），collectSettings / 匹配逻辑不变。
+// 数据仍落在隐藏 textarea（每行一条），collectSettings 不变；高危/白名单判定在后端管道。
 
 const listEditors = {};
 
@@ -513,21 +513,6 @@ function el(tag, className, text) {
   return node;
 }
 
-function globToRegExp(pattern) {
-  const escaped = pattern.trim().replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*").replace(/\?/g, ".");
-  return new RegExp(`^${escaped}$`, "i");
-}
-
-function highRiskPatterns() {
-  return ($("#commit-high-risk").value || "")
-    .split("\n").map((line) => line.trim()).filter(Boolean).map(globToRegExp);
-}
-
-function matchesRisk(patterns, entry) {
-  const haystack = [entry.fixed_path, entry.table_name, entry.readable_name, entry.directory].filter(Boolean);
-  return patterns.some((re) => haystack.some((text) => re.test(text)));
-}
-
 function renderBlockTags(selector, tags) {
   $(selector).replaceChildren(...tags.map((t) => el("span", `tag tag-${t.tone}`, t.label)));
 }
@@ -582,8 +567,7 @@ function renderCommitCheck(report) {
   });
   const all = [...groups.values()].map((g) => ({ ...g, count: g.entries.length, revisionsLabel: revisionSpan(g.revisions) }));
 
-  const patterns = highRiskPatterns();
-  const high = patterns.length ? all.filter((g) => g.entries.some((e) => matchesRisk(patterns, e))) : [];
+  const high = all.filter((g) => g.entries.some((e) => e.high_risk));
   const normal = all.filter((g) => !high.includes(g)).sort((a, b) => b.count - a.count);
 
   const highBox = $("#high-risk-box");
@@ -780,25 +764,6 @@ function renderFileTable(files) {
   $("#file-table-body").replaceChildren(...rows);
 }
 
-const RULE_CHECK_LABELS = {
-  hidden_item_listing: "隐藏道具识别",
-  expiry_time_cross_check: "有效期关联校验",
-  skin_sale_change_check: "皮肤售卖方式校验",
-  package_completeness: "包完整性（手动清单）",
-};
-
-const RULE_REASON_LABELS = {
-  no_rules: "未启用规则集",
-  package_not_touch_item_module: "本次未涉及道具模块",
-  no_item_table_change: "本次提交未变更道具信息表",
-  no_skin_table_change: "本次提交未变更皮肤上下架/促销表",
-  changeset_unavailable: "ChangeSet 不可用，按「只校验提交内容」原则跳过",
-  svn_mode_covered_by_commit_record: "SVN 模式已由提交校验覆盖",
-  missing_tdr_root: "缺少 TdrTable 根目录配置",
-  missing_dtxml: "找不到规则所需 dtxml 文件",
-  unreadable_dtxml: "dtxml 读取失败",
-};
-
 const ACTIVITY_SOURCE_LABELS = {
   reward_exchange_chain: "奖励/兑换链",
   token_progress_chain: "token 进度链",
@@ -819,8 +784,8 @@ function ruleCheckRow(key, result) {
   const side = el("div", "rule-row-side");
   const main = el("div", "rule-row-main");
   const orderBadge = ruleOrderBadge(key);
-  main.append(el("p", "rule-row-name", (orderBadge ? `${orderBadge} · ` : "") + ruleLabel(key)));
-  const reasonText = RULE_REASON_LABELS[result.reason] || result.reason || "";
+  main.append(el("p", "rule-row-name", (orderBadge ? `${orderBadge} · ` : "") + ruleLabel(key, result)));
+  const reasonText = result.reason_label || result.reason || "";
   const itemCount = Array.isArray(result.items) ? result.items.length : 0;
   const warnCount = Array.isArray(result.warnings) ? result.warnings.length : 0;
   const subParts = [reasonText || `${itemCount} 个对象 · ${warnCount} 条告警`];

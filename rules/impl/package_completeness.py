@@ -22,6 +22,7 @@ def run_package_completeness(
         return {
             "status": "skipped",
             "reason": "svn_mode_covered_by_commit_record",
+            "reason_label": "SVN 模式已由提交校验覆盖",
             "message": "SVN 提交模式已由 commit_record 差异校验覆盖，包完整性校验仅适用于手动粘贴 bytes list。",
             "input_method": input_method,
             "items": [],

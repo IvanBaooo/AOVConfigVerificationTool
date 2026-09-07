@@ -140,6 +140,7 @@ def _read_item_rows(
         return {
             "status": "skipped",
             "reason": "changeset_unavailable",
+            "reason_label": "ChangeSet 不可用，按「只校验提交内容」原则跳过",
             "scope": "changeset",
             "message": "DTXML ChangeSet 不可用，为遵循「只校验提交内容」原则，本规则跳过。",
             "items": [],
@@ -147,7 +148,14 @@ def _read_item_rows(
         }
     touched, scope_ids = _item_table_changes(changeset_changes)
     if not touched:
-        return {"status": "skipped", "reason": "no_item_table_change", "scope": "changeset", "items": [], "warnings": []}
+        return {
+            "status": "skipped",
+            "reason": "no_item_table_change",
+            "reason_label": "本次提交未变更道具信息表",
+            "scope": "changeset",
+            "items": [],
+            "warnings": [],
+        }
 
     tdr_root_value = validation_config.get("tdr_root") if isinstance(validation_config, dict) else None
     tdr_root = tdr_root_value if isinstance(tdr_root_value, str) and tdr_root_value.strip() else None
@@ -156,6 +164,7 @@ def _read_item_rows(
         return {
             "status": "error",
             "reason": "missing_tdr_root",
+            "reason_label": "缺少 TdrTable 根目录配置",
             "message": "无法从 ServerBytes 根目录推导 TdrTable 根目录，请配置 tdr_root。",
             "items": [],
             "warnings": [],
@@ -168,7 +177,14 @@ def _read_item_rows(
         dtxml_relative_path=str(dtxml_value) if isinstance(dtxml_value, str) and dtxml_value.strip() else None,
     )
     if dtxml_path is None:
-        return {"status": "error", "reason": "missing_dtxml", "message": error, "items": [], "warnings": []}
+        return {
+            "status": "error",
+            "reason": "missing_dtxml",
+            "reason_label": "找不到规则所需 dtxml 文件",
+            "message": error,
+            "items": [],
+            "warnings": [],
+        }
 
     try:
         columns, rows = read_dtxml_sheet(dtxml_path, ITEM_TABLE_SHEET)
@@ -176,6 +192,7 @@ def _read_item_rows(
         return {
             "status": "error",
             "reason": "unreadable_dtxml",
+            "reason_label": "dtxml 读取失败",
             "message": f"道具表读取失败：{read_error}",
             "items": [],
             "warnings": [],
