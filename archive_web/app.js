@@ -781,6 +781,178 @@ function keyValue(label, value, code = false) {
   return `<div class="key-value"><span>${escapeHtml(label)}</span><${tag}>${escapeHtml(value ?? "--")}</${tag}></div>`;
 }
 
+const CHECK_ITEM_ROW_LIMIT = 50;
+const FILE_LIST_ROW_LIMIT = 10;
+
+function checkItemCell(value) {
+  if (value === null || value === undefined || value === "") return "--";
+  if (typeof value === "object") {
+    const text = JSON.stringify(value);
+    return escapeHtml(text.length > 120 ? `${text.slice(0, 120)}…` : text);
+  }
+  return escapeHtml(value);
+}
+
+function renderCheckItemsTable(items) {
+  if (!Array.isArray(items) || items.length === 0) return "";
+  const keys = [];
+  for (const item of items) {
+    if (!item || typeof item !== "object") continue;
+    for (const key of Object.keys(item)) {
+      if (!keys.includes(key)) keys.push(key);
+    }
+  }
+  if (!keys.length) return "";
+  keys.sort((a, b) => (a === "message" ? -1 : b === "message" ? 1 : 0));
+  const shown = items.slice(0, CHECK_ITEM_ROW_LIMIT);
+  const rows = shown.map((item) => `<tr>${keys.map((key) => {
+    const value = item?.[key];
+    const wrap = typeof value === "string" && value.length > 24 ? ` class="check-cell-text"` : "";
+    return `<td${wrap}>${checkItemCell(value)}</td>`;
+  }).join("")}</tr>`).join("");
+  const truncated = items.length > CHECK_ITEM_ROW_LIMIT
+    ? `<p class="check-card-note">仅显示前 ${CHECK_ITEM_ROW_LIMIT} 条，共 ${items.length} 条</p>`
+    : "";
+  return `<div class="detail-table-wrap">
+    <table>
+      <thead><tr>${keys.map((key) => `<th>${escapeHtml(key)}</th>`).join("")}</tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+  </div>${truncated}`;
+}
+
+function renderCheckWarnings(warnings) {
+  if (!Array.isArray(warnings) || warnings.length === 0) return "";
+  return `<ul class="warning-list">${warnings.map((warning) => {
+    let text;
+    if (typeof warning === "string") text = warning;
+    else {
+      text = warning?.message || "";
+      if (!text) {
+        text = JSON.stringify(warning);
+        if (text.length > 200) text = `${text.slice(0, 200)}…`;
+      }
+    }
+    return `<li>${escapeHtml(text)}</li>`;
+  }).join("")}</ul>`;
+}
+
+function renderValidationChecks(validation) {
+  const checks = Array.isArray(validation?.checks) ? validation.checks : [];
+  if (!checks.length) {
+    return `<p class="check-legacy-note">该归档为旧版记录，无规则校验明细</p>`;
+  }
+  const acknowledgments = Array.isArray(validation?.acknowledgments) ? validation.acknowledgments : [];
+  const ackByType = new Map(acknowledgments.map((ack) => [ack?.type, ack]));
+  return `<div class="check-list">${checks.map((check, index) => {
+    const status = check?.status || "skipped";
+    const items = Array.isArray(check?.items) ? check.items : [];
+    const warnings = Array.isArray(check?.warnings) ? check.warnings : [];
+    const itemCount = Math.max(Number(check?.item_count) || 0, items.length);
+    const warningCount = Math.max(Number(check?.warning_count) || 0, warnings.length);
+    const tables = Array.isArray(check?.tables) && check.tables.length ? check.tables.join("、") : "--";
+    const ack = ackByType.get(check?.type);
+    const ackNote = ack
+      ? `<span class="check-ack">已于 ${escapeHtml(formatDate(ack.acknowledged_at))} 人工确认</span>`
+      : status === "confirm"
+        ? `<span class="check-ack-pending">未确认</span>`
+        : "";
+    const skipReason = status === "skipped" && (check?.reason_label || check?.reason)
+      ? `<p class="check-skip-reason">${escapeHtml(check.reason_label || check.reason)}</p>`
+      : "";
+    return `<article class="check-card" id="validation-check-${index}">
+      <header class="check-card-head">
+        <strong>${escapeHtml(check?.name || check?.type || "--")}</strong>
+        ${badge(status)}
+      </header>
+      <div class="check-card-meta">
+        <span class="check-type">${escapeHtml(check?.type || "--")}</span>
+        <span>明细 ${itemCount} 条 · 告警 ${warningCount} 条</span>
+        <span>归因表：${escapeHtml(tables)}</span>
+        ${ackNote}
+      </div>
+      ${skipReason}
+      ${renderCheckItemsTable(items)}
+      ${renderCheckWarnings(warnings)}
+    </article>`;
+  }).join("")}</div>`;
+}
+
+const REVIEW_ISSUE_STATUS_ORDER = { error: 0, warning: 1, confirm: 2 };
+const REVIEW_ISSUE_LIMIT = 5;
+const REVIEW_EXCERPT_LIMIT = 80;
+
+function reviewCheckExcerpt(check, itemCount) {
+  const warnings = Array.isArray(check?.warnings) ? check.warnings : [];
+  const items = Array.isArray(check?.items) ? check.items : [];
+  let text = "";
+  const firstWarning = warnings.find((warning) => warning);
+  if (typeof firstWarning === "string") text = firstWarning;
+  else if (firstWarning) text = firstWarning.message || firstWarning.path || firstWarning.reason || "";
+  if (!text) {
+    const firstItem = items.find((item) => item);
+    if (typeof firstItem === "string") text = firstItem;
+    else if (firstItem) text = firstItem.message || "";
+  }
+  if (!text) return `${itemCount} 项明细`;
+  return text.length > REVIEW_EXCERPT_LIMIT ? `${text.slice(0, REVIEW_EXCERPT_LIMIT)}…` : text;
+}
+
+function renderReviewValidationSummary(validation, { showAllClear = true } = {}) {
+  const checks = Array.isArray(validation?.checks) ? validation.checks : [];
+  if (!checks.length) return "";
+  const summary = validation?.summary || {};
+  const errorCount = Number(summary.error_count) || 0;
+  const warningCount = Number(summary.warning_count) || 0;
+  const confirmCount = Number(summary.confirm_count) || 0;
+  const countLine = errorCount + warningCount + confirmCount === 0
+    ? (showAllClear ? `<p class="review-summary-counts"><span class="review-count-clear">无告警或待确认项</span></p>` : "")
+    : `<p class="review-summary-counts">${
+        `<span class="${warningCount ? "review-count-warning" : "review-count-zero"}">${warningCount} 条告警</span>`
+      }<span class="review-count-sep">·</span>${
+        `<span class="${confirmCount ? "review-count-confirm" : "review-count-zero"}">${confirmCount} 项待确认</span>`
+      }<span class="review-count-sep">·</span>${
+        `<span class="${errorCount ? "review-count-error" : "review-count-zero"}">${errorCount} 条错误</span>`
+      }</p>`;
+  const issues = checks
+    .map((check, index) => ({ check, index }))
+    .filter(({ check }) => REVIEW_ISSUE_STATUS_ORDER[check?.status] !== undefined)
+    .sort((a, b) => REVIEW_ISSUE_STATUS_ORDER[a.check.status] - REVIEW_ISSUE_STATUS_ORDER[b.check.status]);
+  const shown = issues.slice(0, REVIEW_ISSUE_LIMIT);
+  const issueList = shown.length ? `<ul class="review-issue-list">${shown.map(({ check, index }) => {
+    const items = Array.isArray(check?.items) ? check.items : [];
+    const warnings = Array.isArray(check?.warnings) ? check.warnings : [];
+    const itemCount = Math.max(Number(check?.item_count) || 0, items.length);
+    const warningTotal = Math.max(Number(check?.warning_count) || 0, warnings.length);
+    const countText = check.status === "confirm"
+      ? `${itemCount} 项`
+      : (warningTotal ? `${warningTotal} 条` : `${itemCount} 项`);
+    return `<li class="review-issue" data-check-index="${index}" role="button" tabindex="0">
+      ${badge(check.status)}
+      <span class="review-issue-name">${escapeHtml(check?.name || check?.type || "--")}</span>
+      <span class="review-issue-excerpt">${escapeHtml(reviewCheckExcerpt(check, itemCount))}</span>
+      <span class="review-issue-count">${escapeHtml(countText)}</span>
+    </li>`;
+  }).join("")}</ul>` : "";
+  const moreLine = issues.length > REVIEW_ISSUE_LIMIT
+    ? `<p class="review-issue-more">等 ${issues.length} 条规则</p>`
+    : "";
+  return `<div class="review-validation-summary">${countLine}${issueList}${moreLine}</div>`;
+}
+
+let checkHighlightTimer = null;
+
+function scrollToValidationCheck(index) {
+  const card = elements.detailContent.querySelector(`#validation-check-${index}`);
+  if (!card) return;
+  card.scrollIntoView({ behavior: "smooth", block: "start" });
+  const previous = elements.detailContent.querySelector(".check-card.check-card-highlight");
+  if (previous) previous.classList.remove("check-card-highlight");
+  if (checkHighlightTimer) clearTimeout(checkHighlightTimer);
+  card.classList.add("check-card-highlight");
+  checkHighlightTimer = setTimeout(() => card.classList.remove("check-card-highlight"), 1600);
+}
+
 function validationRow(label, data, detail) {
   return `<div class="validation-row">
     <strong>${escapeHtml(label)}</strong>
@@ -812,6 +984,7 @@ function renderDetail(archive, management = {}) {
         <p>该归档包含告警或待确认项，人工复核通过后才会标记为已确认</p>
         ${badge("pending_review")}
       </div>
+      ${renderReviewValidationSummary(validation)}
       <div class="notice error hidden" id="review-notice" role="status"></div>
       <label class="review-note-field">
         <span>复核备注（选填）</span>
@@ -829,6 +1002,7 @@ function renderDetail(archive, management = {}) {
         <p>${escapeHtml(management.reviewed_by === "auto" || management.reviewed_by === "migration" ? "无告警或待确认项，自动确认" : "人工复核确认")}</p>
         ${badge("confirmed")}
       </div>
+      ${renderReviewValidationSummary(validation, { showAllClear: management.reviewed_by !== "auto" && management.reviewed_by !== "migration" })}
       <div class="key-grid">
         ${keyValue("确认人", management.reviewed_by)}
         ${keyValue("确认时间", formatDate(management.reviewed_at))}
@@ -893,6 +1067,7 @@ function renderDetail(archive, management = {}) {
       </div>
       ${validationRow("提交记录", commit, `${commit.package_path_count || 0} 个包内路径，${commit.warning_count || 0} 个告警`)}
       ${describeWarnings(commit.warnings)}
+      ${renderValidationChecks(validation)}
     </section>
 
     <section class="detail-section">
@@ -900,7 +1075,7 @@ function renderDetail(archive, management = {}) {
       <div class="detail-table-wrap">
         <table>
           <thead><tr><th>动作</th><th>路径</th><th>大小</th><th>状态</th></tr></thead>
-          <tbody>${files.map((file) => `<tr>
+          <tbody>${files.map((file, index) => `<tr${index >= FILE_LIST_ROW_LIMIT ? ` class="file-row-extra hidden"` : ""}>
             <td>${escapeHtml(file.action)}</td>
             <td class="package-cell">${escapeHtml(file.fixed_path || file.archive_path)}</td>
             <td>${escapeHtml(formatBytes(file.size))}</td>
@@ -908,11 +1083,35 @@ function renderDetail(archive, management = {}) {
           </tr>`).join("")}</tbody>
         </table>
       </div>
+      ${files.length > FILE_LIST_ROW_LIMIT
+        ? `<button class="file-list-toggle" id="file-list-toggle" type="button" data-expanded="false">展开全部（${files.length}）</button>`
+        : ""}
     </section>
   `;
   const confirmButton = elements.detailContent.querySelector("#review-confirm-button");
   if (confirmButton) {
     confirmButton.addEventListener("click", () => confirmArchiveReview(archive.package_id));
+  }
+  elements.detailContent.querySelectorAll(".review-issue[data-check-index]").forEach((item) => {
+    const jump = () => scrollToValidationCheck(item.dataset.checkIndex);
+    item.addEventListener("click", jump);
+    item.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        jump();
+      }
+    });
+  });
+  const fileToggle = elements.detailContent.querySelector("#file-list-toggle");
+  if (fileToggle) {
+    fileToggle.addEventListener("click", () => {
+      const expanded = fileToggle.dataset.expanded === "true";
+      elements.detailContent.querySelectorAll(".file-row-extra").forEach((row) => {
+        row.classList.toggle("hidden", expanded);
+      });
+      fileToggle.dataset.expanded = expanded ? "false" : "true";
+      fileToggle.textContent = expanded ? `展开全部（${files.length}）` : "收起";
+    });
   }
 }
 
