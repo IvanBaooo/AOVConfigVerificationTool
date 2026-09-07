@@ -133,9 +133,11 @@ def run_commit_record_check_optimized(
 		or config.get("path_whitelist")
 		or []
 	)
+	high_risk_patterns = _as_string_list(config.get("high_risk_paths") or [])
 	statistics = dict(result.get("statistics", {}) if isinstance(result.get("statistics"), dict) else {})
 	statistics.update(_collect_log_statistics(config))
 	statistics["whitelist_patterns"] = whitelist_patterns
+	statistics["high_risk_patterns"] = high_risk_patterns
 
 	warnings = result.get("warnings", [])
 	if not isinstance(warnings, list):
@@ -174,12 +176,29 @@ def run_commit_record_check_optimized(
 				except Exception:
 					continue
 
+	high_risk_hits: List[Dict[str, object]] = []
+	for warning in kept_warnings:
+		matched_pattern = matching_whitelist_pattern(
+			str(warning.get("fixed_path") or ""),
+			high_risk_patterns,
+		)
+		if matched_pattern:
+			warning["high_risk"] = True
+			warning["high_risk_pattern"] = matched_pattern
+			high_risk_hits.append(warning)
+
 	statistics["filtered_unresolved_revision_count"] = len(unresolved_revisions)
 	statistics["filtered_unresolved_revision_sample"] = unresolved_revisions[:20]
 	statistics["whitelisted_warning_count"] = len(filtered_whitelist)
 	statistics["whitelisted_paths"] = [
 		str(warning.get("fixed_path") or "")
 		for warning in filtered_whitelist
+		if warning.get("fixed_path")
+	]
+	statistics["high_risk_warning_count"] = len(high_risk_hits)
+	statistics["high_risk_paths"] = [
+		str(warning.get("fixed_path") or "")
+		for warning in high_risk_hits
 		if warning.get("fixed_path")
 	]
 
@@ -192,3 +211,50 @@ def run_commit_record_check_optimized(
 	if result.get("status") == "warning" and not kept_warnings:
 		result["status"] = "passed"
 	return result
+
+
+def build_commit_high_risk_check(
+	result: Dict[str, object],
+	validation_config: Optional[Dict[str, object]],
+) -> Optional[Dict[str, object]]:
+	config = _commit_config(validation_config)
+	high_risk_patterns = _as_string_list(config.get("high_risk_paths") or [])
+	if not high_risk_patterns:
+		return None
+
+	base: Dict[str, object] = {
+		"name": "高危路径提交确认",
+		"item_count": 0,
+		"warning_count": 0,
+		"tables": ["（提交记录）"],
+		"items": [],
+		"warnings": [],
+	}
+	if str(result.get("status") or "") not in {"warning", "passed"}:
+		base["status"] = "skipped"
+		base["reason"] = result.get("reason", "commit_record_check_disabled")
+		base["reason_label"] = str(result.get("reason_label") or "提交记录校验未执行")
+		return base
+
+	warnings = result.get("warnings", [])
+	items: List[Dict[str, object]] = []
+	if isinstance(warnings, list):
+		for warning in warnings:
+			if not isinstance(warning, dict) or not warning.get("high_risk"):
+				continue
+			items.append({
+				"type": "high_risk_commit",
+				"level": "confirm",
+				"fixed_path": str(warning.get("fixed_path") or ""),
+				"table_name": str(warning.get("table_name") or ""),
+				"readable_name": str(warning.get("readable_name") or ""),
+				"directory": str(warning.get("directory") or ""),
+				"revisions": list(warning.get("revisions") or []) if isinstance(warning.get("revisions"), list) else [],
+				"high_risk_pattern": str(warning.get("high_risk_pattern") or ""),
+				"message": "命中高危名单，需人工确认后方可归档。",
+			})
+
+	base["status"] = "confirm" if items else "passed"
+	base["item_count"] = len(items)
+	base["items"] = items
+	return base

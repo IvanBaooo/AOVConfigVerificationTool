@@ -25,6 +25,7 @@ class LocalSettingsTests(unittest.TestCase):
 					"package_region": "TW",
 					"enable_commit_check": True,
 					"commit_whitelist": "/Taiwan/Databin/Server/Actor/Hero_MD5*.txt",
+					"commit_high_risk": "ResSvr2CltIluaCfg*",
 					"svn_password": "must-not-be-written",
 					"current_revision_spec": "r1699997",
 					"unknown_field": "ignored",
@@ -45,6 +46,7 @@ class LocalSettingsTests(unittest.TestCase):
 				loaded["commit_whitelist"],
 				"/Taiwan/Databin/Server/Actor/Hero_MD5*.txt",
 			)
+			self.assertEqual(loaded["commit_high_risk"], "ResSvr2CltIluaCfg*")
 
 	def test_rule_switch_fields_round_trip(self) -> None:
 		with tempfile.TemporaryDirectory() as temp_dir:

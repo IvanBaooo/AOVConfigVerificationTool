@@ -204,6 +204,8 @@
         "file_name": { "type": "string" },
         "fixed_path": { "$ref": "#/$defs/fixed_path" },
         "message": { "type": "string" },
+        "high_risk": { "type": "boolean" },
+        "high_risk_pattern": { "type": "string" },
         "revisions": { "$ref": "#/$defs/revisions" },
         "actions": { "type": "array", "items": { "type": "string", "minLength": 1 } },
         "last_external_revision": { "type": "integer", "minimum": 1 },
@@ -243,6 +245,8 @@
         "filtered_unresolved_revision_count": { "$ref": "#/$defs/count" },
         "whitelist_hit_count": { "$ref": "#/$defs/count" },
         "whitelisted_paths": { "type": "array", "items": { "$ref": "#/$defs/fixed_path" } },
+        "high_risk_hit_count": { "$ref": "#/$defs/count" },
+        "high_risk_paths": { "type": "array", "items": { "$ref": "#/$defs/fixed_path" } },
         "warnings": { "type": "array", "items": { "$ref": "#/$defs/commit_warning" } }
       }
     },

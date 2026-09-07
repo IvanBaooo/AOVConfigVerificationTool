@@ -241,6 +241,11 @@ def _copy_commit_warning(value: object) -> dict[str, object]:
 	message = _public_message(warning.get("message"))
 	if message:
 		result["message"] = message
+	if "high_risk" in warning:
+		result["high_risk"] = _boolean_field(warning, "high_risk", "commit_warning.high_risk")
+	high_risk_pattern = _optional_text(warning, "high_risk_pattern")
+	if high_risk_pattern:
+		result["high_risk_pattern"] = high_risk_pattern
 	if "revisions" in warning:
 		result["revisions"] = _positive_unique_revisions(warning["revisions"], "commit_warning.revisions")
 	if "actions" in warning:
@@ -329,6 +334,9 @@ def build_archive_record(report: Mapping[str, Any]) -> dict[str, object]:
 	whitelisted_paths = statistics.get("whitelisted_paths", [])
 	if not isinstance(whitelisted_paths, list):
 		raise ArchiveContractError("commit_record.whitelisted_paths must be a list")
+	high_risk_paths = statistics.get("high_risk_paths", [])
+	if not isinstance(high_risk_paths, list):
+		raise ArchiveContractError("commit_record.high_risk_paths must be a list")
 
 	return {
 		"schema_version": ARCHIVE_CONTRACT_VERSION,
@@ -424,6 +432,12 @@ def build_archive_record(report: Mapping[str, Any]) -> dict[str, object]:
 				),
 				"whitelisted_paths": [
 					_safe_fixed_path(path, "commit_record.whitelisted_paths") for path in whitelisted_paths
+				],
+				"high_risk_hit_count": _optional_integer(
+					statistics, "high_risk_warning_count", "commit_record.high_risk_hit_count"
+				),
+				"high_risk_paths": [
+					_safe_fixed_path(path, "commit_record.high_risk_paths") for path in high_risk_paths
 				],
 				"warnings": [_copy_commit_warning(warning) for warning in warnings],
 			},

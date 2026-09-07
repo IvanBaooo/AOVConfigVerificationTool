@@ -6,6 +6,7 @@ import re
 from datetime import datetime
 from typing import Mapping
 
+from rules.registry import registered_check_types
 from svn_path_policy import normalize_policy_path, parse_whitelist_patterns
 
 
@@ -13,12 +14,7 @@ RULE_SCHEMA_VERSION = "1.0"
 SUPPORTED_REGIONS = ("TW", "TH", "VN", "ID")
 IDENTIFIER_PATTERN = re.compile(r"^[A-Za-z0-9._-]{1,64}$")
 
-SUPPORTED_CONTENT_CHECK_TYPES = (
-	"skin_sale_change_check",
-	"hidden_item_listing",
-	"expiry_time_cross_check",
-	"package_completeness",
-)
+SUPPORTED_CONTENT_CHECK_TYPES = tuple(registered_check_types())
 CHECK_SEVERITIES = ("warning", "error", "confirm")
 
 
@@ -159,12 +155,18 @@ def _content_checks(value: object, field: str) -> list[dict[str, object]]:
 		checks.append(normalized)
 	return checks
 
+def _pattern_list(value: object, field: str) -> list[str]:
+	if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
+		raise ValidationRuleSetError(f"{field} must be a string list.")
+	return parse_whitelist_patterns(value)
+
+
 def _rules(value: object, field: str) -> dict[str, object]:
 	if value is None:
 		value = {}
 	if not isinstance(value, Mapping):
 		raise ValidationRuleSetError(f"{field} must be an object.")
-	unknown = set(value) - {"path_mappings", "whitelist_paths", "content_checks"}
+	unknown = set(value) - {"path_mappings", "whitelist_paths", "high_risk_paths", "content_checks"}
 	if unknown:
 		raise ValidationRuleSetError(f"{field} contains unsupported fields: {sorted(unknown)}")
 
@@ -194,14 +196,13 @@ def _rules(value: object, field: str) -> dict[str, object]:
 			"table_name": table_name,
 		})
 
-	whitelist_value = value.get("whitelist_paths", [])
-	if not isinstance(whitelist_value, list) or not all(isinstance(item, str) for item in whitelist_value):
-		raise ValidationRuleSetError(f"{field}.whitelist_paths must be a string list.")
-	whitelist_paths = parse_whitelist_patterns(whitelist_value)
+	whitelist_paths = _pattern_list(value.get("whitelist_paths", []), f"{field}.whitelist_paths")
 	result: dict[str, object] = {
 		"path_mappings": path_mappings,
 		"whitelist_paths": whitelist_paths,
 	}
+	if "high_risk_paths" in value:
+		result["high_risk_paths"] = _pattern_list(value.get("high_risk_paths"), f"{field}.high_risk_paths")
 	if "content_checks" in value:
 		result["content_checks"] = _content_checks(value.get("content_checks"), f"{field}.content_checks")
 	return result
@@ -290,6 +291,10 @@ def effective_rule_set(rule_set: Mapping[str, object], region_code: str) -> dict
 		*common.get("whitelist_paths", []),
 		*regional.get("whitelist_paths", []),
 	])
+	high_risk = parse_whitelist_patterns([
+		*common.get("high_risk_paths", []),
+		*regional.get("high_risk_paths", []),
+	])
 	content_checks: list[dict[str, object]] = []
 	content_indexes: dict[str, int] = {}
 	for source in (common.get("content_checks", []), regional.get("content_checks", [])):
@@ -305,6 +310,7 @@ def effective_rule_set(rule_set: Mapping[str, object], region_code: str) -> dict
 	effective_rules: dict[str, object] = {
 		"path_mappings": mappings,
 		"whitelist_paths": whitelist,
+		"high_risk_paths": high_risk,
 	}
 	if content_checks or "content_checks" in common or "content_checks" in regional:
 		effective_rules["content_checks"] = content_checks

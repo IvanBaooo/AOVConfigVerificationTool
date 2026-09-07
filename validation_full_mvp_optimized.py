@@ -2,7 +2,10 @@ from __future__ import annotations
 
 from typing import Dict, List, Optional
 
-from svn_commit_validation_optimized import run_commit_record_check_optimized
+from svn_commit_validation_optimized import (
+	build_commit_high_risk_check,
+	run_commit_record_check_optimized,
+)
 from validation_mvp import run_mvp_validations
 
 
@@ -66,6 +69,10 @@ def run_full_mvp_validations_optimized(
 		checks.update(base_checks)
 	checks["commit_record"] = commit_result
 
+	high_risk_check = build_commit_high_risk_check(commit_result, validation_config)
+	if high_risk_check is not None:
+		checks["commit_high_risk_confirm"] = high_risk_check
+
 	package_results: List[Dict[str, object]] = []
 	content_checks = validation_config.get("content_checks") if isinstance(validation_config, dict) else None
 	if isinstance(content_checks, list):
@@ -92,8 +99,11 @@ def run_full_mvp_validations_optimized(
 
 	rule_set_value = validation_config.get("rule_set") if isinstance(validation_config, dict) else None
 	rule_set = dict(rule_set_value) if isinstance(rule_set_value, dict) else {}
+	summary_extras = [commit_result, *package_results]
+	if high_risk_check is not None:
+		summary_extras.append(high_risk_check)
 	return {
-		"summary": _merge_summary(base, commit_result, *package_results),
+		"summary": _merge_summary(base, *summary_extras),
 		"rule_set": rule_set,
 		"checks": checks,
 	}

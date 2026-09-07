@@ -22,6 +22,7 @@ STRING_FIELDS = (
 	"package_version",
 	"package_region",
 	"commit_whitelist",
+	"commit_high_risk",
 	"ftp_host",
 	"ftp_port",
 	"ftp_username",

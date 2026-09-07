@@ -63,6 +63,10 @@
                   "type": "array",
                   "items": { "$ref": "#/$defs/final_fixed_path" }
                 },
+                "high_risk_paths": {
+                  "type": "array",
+                  "items": { "$ref": "#/$defs/final_fixed_path" }
+                },
                 "warnings": {
                   "type": "array",
                   "items": {

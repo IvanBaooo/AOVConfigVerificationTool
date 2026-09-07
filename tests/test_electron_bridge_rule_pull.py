@@ -14,6 +14,7 @@ from backend_archive_contract_v1 import SAFE_ID_PATTERN
 from electron_bridge import ElectronBridgeService
 from local_settings import save_local_settings
 from rules.client import ValidationRuleCache, ValidationRuleClient
+from rules.registry import all_rule_specs
 from rules.sets import effective_rule_set
 from svn_pack_source import PackSourceInspection
 from test_validation_rule_sets import sample_rule_set
@@ -94,10 +95,11 @@ class RulePullWiringTests(unittest.TestCase):
 		self.assertEqual("remote", rule_set["source"])
 		self.assertEqual("aov-main", rule_set["rule_set_id"])
 		self.assertEqual("2026.07.27.1", rule_set["version"])
-		# 后端规则的 content_checks/path_mappings/whitelist_paths 覆盖内置默认
+		# 后端规则的 content_checks/path_mappings 覆盖内置默认，whitelist/high_risk 与本地并集
 		self.assertEqual(["skin-sale-change-check"], [check["id"] for check in config["content_checks"]])
 		commit_record = config["commit_record"]
 		self.assertEqual(["/CommonIgnored.xml", "/TwIgnored.xml"], commit_record["whitelist_paths"])
+		self.assertEqual([], commit_record["high_risk_paths"])
 		self.assertEqual("TW 活动表", commit_record["path_mappings"][0]["table_name"])
 		# 归档契约字段格式（backend_archive_contract_v1）
 		self.assertTrue(SAFE_ID_PATTERN.fullmatch(rule_set["rule_set_id"]))
@@ -126,6 +128,77 @@ class RulePullWiringTests(unittest.TestCase):
 		self.assertIs(check["enabled"], False)
 		self.assertEqual("皮肤售卖（本地改名）", check["name"])
 		self.assertEqual("remote", config["rule_set"]["source"])
+
+	def test_remote_and_local_path_lists_merge_as_union(self) -> None:
+		with tempfile.TemporaryDirectory() as temporary_directory:
+			root = Path(temporary_directory)
+			rule_set = sample_rule_set()
+			rule_set["common"]["whitelist_paths"] = ["Shared.xml", "RemoteOnly.xml"]
+			rule_set["common"]["high_risk_paths"] = ["RemoteRisk.xml"]
+			rule_set["regions"]["TW"]["whitelist_paths"] = []
+			effective = effective_rule_set(rule_set, "TW")
+			client = ValidationRuleClient(
+				cache=ValidationRuleCache(root / "cache.json"),
+				opener=lambda _request, **_kwargs: FakeResponse({"rule_set": effective}),
+			)
+
+			config = self._run_pack(root, client, settings={
+				"region": "TW",
+				"backend_url": "http://127.0.0.1:8780",
+				"commit_whitelist": "Shared.xml\nLocalOnly.xml",
+				"commit_high_risk": "LocalRisk.xml",
+			})
+
+		commit_record = config["commit_record"]
+		# 远程下发在前、本地追加在后；Shared.xml 归一化后与远程 /Shared.xml 去重
+		self.assertEqual(
+			["/Shared.xml", "/RemoteOnly.xml", "LocalOnly.xml"],
+			commit_record["whitelist_paths"],
+		)
+		self.assertEqual(["/RemoteRisk.xml", "LocalRisk.xml"], commit_record["high_risk_paths"])
+
+	def test_remote_empty_path_lists_keep_local_settings(self) -> None:
+		with tempfile.TemporaryDirectory() as temporary_directory:
+			root = Path(temporary_directory)
+			rule_set = sample_rule_set()
+			rule_set["common"]["whitelist_paths"] = []
+			rule_set["regions"]["TW"]["whitelist_paths"] = []
+			effective = effective_rule_set(rule_set, "TW")
+			client = ValidationRuleClient(
+				cache=ValidationRuleCache(root / "cache.json"),
+				opener=lambda _request, **_kwargs: FakeResponse({"rule_set": effective}),
+			)
+
+			config = self._run_pack(root, client, settings={
+				"region": "TW",
+				"backend_url": "http://127.0.0.1:8780",
+				"commit_whitelist": "LocalOnly.xml",
+				"commit_high_risk": "LocalRisk.xml",
+			})
+
+		commit_record = config["commit_record"]
+		self.assertEqual(["LocalOnly.xml"], commit_record["whitelist_paths"])
+		self.assertEqual(["LocalRisk.xml"], commit_record["high_risk_paths"])
+
+	def test_built_in_source_keeps_local_path_lists(self) -> None:
+		with tempfile.TemporaryDirectory() as temporary_directory:
+			root = Path(temporary_directory)
+			client = ValidationRuleClient(
+				cache=ValidationRuleCache(root / "cache.json"),
+				opener=_offline_opener,
+			)
+
+			config = self._run_pack(root, client, settings={
+				"region": "TW",
+				"backend_url": "http://127.0.0.1:8780",
+				"commit_whitelist": "LocalOnly.xml",
+				"commit_high_risk": "LocalRisk.xml",
+			})
+
+		commit_record = config["commit_record"]
+		self.assertEqual("built_in", config["rule_set"]["source"])
+		self.assertEqual(["LocalOnly.xml"], commit_record["whitelist_paths"])
+		self.assertEqual(["LocalRisk.xml"], commit_record["high_risk_paths"])
 
 	def test_remote_failure_falls_back_to_local_cache(self) -> None:
 		with tempfile.TemporaryDirectory() as temporary_directory:
@@ -157,7 +230,7 @@ class RulePullWiringTests(unittest.TestCase):
 		self.assertTrue(re.fullmatch(r"[0-9a-f]{64}", rule_set["rule_hash"]))
 		# 内置规则不覆盖注册表默认 content_checks
 		self.assertEqual(
-			["hidden-item-tab", "expiry-activity-cross-check", "skin-sale-change-check", "package-completeness-manual"],
+			[spec["id"] for spec in all_rule_specs()],
 			[check["id"] for check in config["content_checks"]],
 		)
 

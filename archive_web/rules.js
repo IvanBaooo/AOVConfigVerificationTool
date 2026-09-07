@@ -12,7 +12,9 @@ const ruleUi = {
   scopes: document.querySelector("#rule-scope-switch"), mappingRows: document.querySelector("#mapping-rows"),
   mappingEmpty: document.querySelector("#mapping-empty"), whitelistRows: document.querySelector("#whitelist-rows"),
   whitelistEmpty: document.querySelector("#whitelist-empty"), addMapping: document.querySelector("#add-mapping"),
-  addWhitelist: document.querySelector("#add-whitelist"), contentRows: document.querySelector("#content-check-rows"),
+  addWhitelist: document.querySelector("#add-whitelist"), highRiskRows: document.querySelector("#high-risk-rows"),
+  highRiskEmpty: document.querySelector("#high-risk-empty"), addHighRisk: document.querySelector("#add-high-risk"),
+  contentRows: document.querySelector("#content-check-rows"),
   contentEmpty: document.querySelector("#content-check-empty"), contentCount: document.querySelector("#content-check-count"),
   addContent: document.querySelector("#add-content-check"),
   added: document.querySelector("#change-added"),
@@ -64,6 +66,7 @@ function showRulesView() {
   ruleUi.rulesNav.classList.add("active"); ruleUi.rulesNav.setAttribute("aria-current", "page");
   ruleUi.pageKicker.textContent = "校验配置"; ruleUi.pageTitle.textContent = "规则版本管理";
   ruleUi.archiveRefresh.classList.add("hidden");
+  loadRuleCheckCatalog();
   if (!ruleState.items.length && !ruleState.loading) loadRuleHistory();
 }
 function showArchiveView() {
@@ -78,14 +81,14 @@ function normalizeRule(document) {
   const value = cloneRule(document) || {};
   value.schema_version ||= "1.0"; value.rule_set_id ||= "aov-main"; value.version ||= "";
   value.published_at ||= ""; value.notes ||= ""; value.common ||= {};
-  value.common.path_mappings ||= []; value.common.whitelist_paths ||= []; value.common.content_checks ||= []; value.regions ||= {};
+  value.common.path_mappings ||= []; value.common.whitelist_paths ||= []; value.common.high_risk_paths ||= []; value.common.content_checks ||= []; value.regions ||= {};
   for (const region of RULE_SCOPES.slice(1)) {
-    value.regions[region] ||= {}; value.regions[region].path_mappings ||= []; value.regions[region].whitelist_paths ||= []; value.regions[region].content_checks ||= [];
+    value.regions[region] ||= {}; value.regions[region].path_mappings ||= []; value.regions[region].whitelist_paths ||= []; value.regions[region].high_risk_paths ||= []; value.regions[region].content_checks ||= [];
   }
   return value;
 }
 function activeScope(document = ruleState.draft || ruleState.selected) {
-  if (!document) return { path_mappings: [], whitelist_paths: [], content_checks: [] };
+  if (!document) return { path_mappings: [], whitelist_paths: [], high_risk_paths: [], content_checks: [] };
   return ruleState.scope === "common" ? document.common : document.regions[ruleState.scope];
 }
 function nextRuleVersion() {
@@ -109,9 +112,23 @@ function renderRuleHistory() {
       <span class="rule-history-version">${escapeRuleHtml(item.version)}</span>
       <span class="rule-history-meta">${escapeRuleHtml(item.rule_set_id)} · ${formatRuleTime(item.published_at)}</span>
       <span class="rule-history-note">${escapeRuleHtml(item.notes || "无发布说明")}</span>
-      <span class="rule-history-stats">${Number(item.mapping_count || 0)} 个映射 · ${Number(item.whitelist_count || 0)} 个白名单 · ${Number(item.content_check_count || 0)} 个表校验</span>
+      <span class="rule-history-stats">${Number(item.mapping_count || 0)} 个映射 · ${Number(item.whitelist_count || 0)} 个白名单 · ${Number(item.high_risk_count || 0)} 个高危 · ${Number(item.content_check_count || 0)} 个表校验</span>
     </button>`;
   }).join("");
+}
+async function loadRuleCheckCatalog() {
+  try {
+    const payload = await ruleRequest("/api/v1/validation-rule-catalog");
+    const checks = Array.isArray(payload.checks) ? payload.checks : [];
+    const datalist = document.querySelector("#rule-check-type-options");
+    if (datalist) {
+      datalist.innerHTML = checks
+        .map((check) => `<option value="${escapeRuleHtml(check.type)}">${escapeRuleHtml(check.name || "")}</option>`)
+        .join("");
+    }
+  } catch {
+    // 提示列表拉取失败不阻塞编辑，type 仍可手动输入。
+  }
 }
 async function loadRuleHistory(preferred = null) {
   ruleState.loading = true; ruleUi.refresh.disabled = true; ruleUi.newDraft.disabled = true;
@@ -167,6 +184,11 @@ function renderRuleRows() {
     <button class="icon-button remove-rule-row" type="button" data-kind="whitelist" data-index="${index}" title="删除白名单" aria-label="删除白名单" ${editing ? "" : "disabled"}>×</button>
   </div>`).join("");
   ruleUi.whitelistEmpty.classList.toggle("hidden", rules.whitelist_paths.length > 0);
+  ruleUi.highRiskRows.innerHTML = rules.high_risk_paths.map((pattern, index) => `<div class="whitelist-row">
+    <input data-kind="high_risk" data-index="${index}" value="${escapeRuleHtml(pattern)}" ${editing ? "" : "disabled"} aria-label="高危路径">
+    <button class="icon-button remove-rule-row" type="button" data-kind="high_risk" data-index="${index}" title="删除高危" aria-label="删除高危" ${editing ? "" : "disabled"}>×</button>
+  </div>`).join("");
+  ruleUi.highRiskEmpty.classList.toggle("hidden", rules.high_risk_paths.length > 0);
   ruleUi.contentRows.innerHTML = rules.content_checks.map((check, index) => `<article class="content-check-row">
     <div class="content-check-row-header">
       <label class="content-check-toggle"><span>启用</span><input type="checkbox" data-kind="content" data-index="${index}" data-field="enabled" ${check.enabled ? "checked" : ""} ${editing ? "" : "disabled"}></label>
@@ -175,6 +197,7 @@ function renderRuleRows() {
       <button class="icon-button remove-rule-row" type="button" data-kind="content" data-index="${index}" title="删除表校验" aria-label="删除表校验" ${editing ? "" : "disabled"}>×</button>
     </div>
     <div class="content-check-body">
+      <label class="content-check-field"><span>规则类型 type</span><input data-kind="content" data-index="${index}" data-field="type" list="rule-check-type-options" value="${escapeRuleHtml(check.type)}" ${editing ? "" : "disabled"}></label>
       <label class="content-check-path"><span>DTXML 相对路径，支持 {region}</span><input data-kind="content" data-index="${index}" data-field="dtxml_path" value="${escapeRuleHtml(check.dtxml_path)}" ${editing ? "" : "disabled"}></label>
       <label class="content-check-field"><span>长期上下架 Sheet</span><input data-kind="content" data-index="${index}" data-field="main_sheet" value="${escapeRuleHtml(check.main_sheet)}" ${editing ? "" : "disabled"}></label>
       <label class="content-check-field"><span>促销特卖 Sheet</span><input data-kind="content" data-index="${index}" data-field="promotion_sheet" value="${escapeRuleHtml(check.promotion_sheet)}" ${editing ? "" : "disabled"}></label>
@@ -183,18 +206,19 @@ function renderRuleRows() {
   </article>`).join("");
   ruleUi.contentEmpty.classList.toggle("hidden", rules.content_checks.length > 0);
   ruleUi.contentCount.textContent = `${rules.content_checks.length} 项`;
-  ruleUi.addMapping.disabled = !editing; ruleUi.addWhitelist.disabled = !editing; ruleUi.addContent.disabled = !editing;
+  ruleUi.addMapping.disabled = !editing; ruleUi.addWhitelist.disabled = !editing; ruleUi.addHighRisk.disabled = !editing; ruleUi.addContent.disabled = !editing;
 }
 function comparable(document) {
-  const mappings = new Map(); const whitelist = new Set(); const content = new Map();
-  if (!document) return { mappings, whitelist, content };
+  const mappings = new Map(); const whitelist = new Set(); const highRisk = new Set(); const content = new Map();
+  if (!document) return { mappings, whitelist, highRisk, content };
   for (const scope of RULE_SCOPES) {
     const rules = scope === "common" ? document.common : document.regions[scope];
     for (const item of rules.path_mappings || []) mappings.set(`${scope}\0${String(item.path_suffix || "").toLowerCase()}`, { module: String(item.module || ""), table_name: String(item.table_name || "") });
     for (const item of rules.whitelist_paths || []) whitelist.add(`${scope}\0${String(item || "").toLowerCase()}`);
+    for (const item of rules.high_risk_paths || []) highRisk.add(`${scope}\0${String(item || "").toLowerCase()}`);
     for (const item of rules.content_checks || []) content.set(`${scope}\0${String(item.id || "").toLowerCase()}`, item);
   }
-  return { mappings, whitelist, content };
+  return { mappings, whitelist, highRisk, content };
 }
 function ruleDiff() {
   if (!ruleState.draft) return { added: 0, updated: 0, removed: 0, total: 0 };
@@ -207,6 +231,8 @@ function ruleDiff() {
   for (const key of before.mappings.keys()) if (!after.mappings.has(key)) removed += 1;
   for (const key of after.whitelist) if (!before.whitelist.has(key)) added += 1;
   for (const key of before.whitelist) if (!after.whitelist.has(key)) removed += 1;
+  for (const key of after.highRisk) if (!before.highRisk.has(key)) added += 1;
+  for (const key of before.highRisk) if (!after.highRisk.has(key)) removed += 1;
   for (const [key, value] of after.content) {
     if (!before.content.has(key)) added += 1;
     else if (JSON.stringify(before.content.get(key)) !== JSON.stringify(value)) updated += 1;
@@ -223,7 +249,7 @@ function validateDraft() {
   if (!String(ruleState.draft.notes || "").trim()) errors.push("请填写本次规则的发布说明。");
   for (const scope of RULE_SCOPES) {
     const rules = scope === "common" ? ruleState.draft.common : ruleState.draft.regions[scope];
-    const mappings = new Set(); const whitelist = new Set();
+    const mappings = new Set(); const whitelist = new Set(); const highRisk = new Set();
     for (const [index, item] of (rules.path_mappings || []).entries()) {
       const name = `${ruleScopeLabel(scope)}第 ${index + 1} 条映射`; const suffix = String(item.path_suffix || "").trim();
       if (!suffix.startsWith("/") || suffix.endsWith("/")) errors.push(`${name}的路径后缀应以 / 开头且不能以 / 结尾。`);
@@ -235,12 +261,19 @@ function validateDraft() {
       if (!value) errors.push(`${ruleScopeLabel(scope)}第 ${index + 1} 条白名单为空。`);
       const key = value.toLowerCase(); if (key && whitelist.has(key)) errors.push(`${ruleScopeLabel(scope)}第 ${index + 1} 条白名单重复。`); whitelist.add(key);
     }
+    for (const [index, item] of (rules.high_risk_paths || []).entries()) {
+      const value = String(item || "").trim();
+      if (!value) errors.push(`${ruleScopeLabel(scope)}第 ${index + 1} 条高危名单为空。`);
+      const key = value.toLowerCase(); if (key && highRisk.has(key)) errors.push(`${ruleScopeLabel(scope)}第 ${index + 1} 条高危名单重复。`); highRisk.add(key);
+    }
     const contentIds = new Set();
     for (const [index, item] of (rules.content_checks || []).entries()) {
       const name = `${ruleScopeLabel(scope)}第 ${index + 1} 条表校验`;
       const id = String(item.id || "").trim();
       if (!RULE_ID_PATTERN.test(id)) errors.push(`${name}的规则 ID 格式不正确。`);
       const idKey = id.toLowerCase(); if (idKey && contentIds.has(idKey)) errors.push(`${name}的规则 ID 重复。`); contentIds.add(idKey);
+      const checkType = String(item.type || "").trim();
+      if (!RULE_ID_PATTERN.test(checkType)) errors.push(`${name}的规则类型格式不正确（需与客户端注册的规则 type 一致）。`);
       if (!String(item.name || "").trim()) errors.push(`${name}缺少校验名称。`);
       const dtxmlPath = String(item.dtxml_path || "").trim();
       if (dtxmlPath && (!dtxmlPath.startsWith("/") || !dtxmlPath.endsWith(".dtxml") || dtxmlPath.includes(".."))) errors.push(`${name}的 DTXML 路径无效。`);
@@ -260,11 +293,12 @@ function updateRuleSummary() {
 }
 function addMapping() { if (!ruleState.draft) return; activeScope().path_mappings.push({ path_suffix: "/", module: "", table_name: "" }); renderRuleRows(); updateRuleSummary(); ruleUi.mappingRows.querySelector("tr:last-child input")?.focus(); }
 function addWhitelist() { if (!ruleState.draft) return; activeScope().whitelist_paths.push(""); renderRuleRows(); updateRuleSummary(); ruleUi.whitelistRows.querySelector(".whitelist-row:last-child input")?.focus(); }
+function addHighRisk() { if (!ruleState.draft) return; activeScope().high_risk_paths.push(""); renderRuleRows(); updateRuleSummary(); ruleUi.highRiskRows.querySelector(".whitelist-row:last-child input")?.focus(); }
 function addContentCheck() {
   if (!ruleState.draft) return;
   activeScope().content_checks.push({
     id: "",
-    type: "hidden_item_listing",
+    type: "",
     enabled: true,
     name: "",
     trigger_paths: ["/"],
@@ -278,6 +312,7 @@ function handleRuleInput(event) {
   else if (event.target === ruleUi.notes) ruleState.draft.notes = event.target.value;
   else if (event.target.dataset.kind === "mapping") activeScope().path_mappings[Number(event.target.dataset.index)][event.target.dataset.field] = event.target.value;
   else if (event.target.dataset.kind === "whitelist") activeScope().whitelist_paths[Number(event.target.dataset.index)] = event.target.value;
+  else if (event.target.dataset.kind === "high_risk") activeScope().high_risk_paths[Number(event.target.dataset.index)] = event.target.value;
   else if (event.target.dataset.kind === "content") {
     const check = activeScope().content_checks[Number(event.target.dataset.index)];
     if (!check) return;
@@ -292,6 +327,7 @@ function removeRuleRow(event) {
   const index = Number(button.dataset.index);
   if (button.dataset.kind === "mapping") activeScope().path_mappings.splice(index, 1);
   else if (button.dataset.kind === "content") activeScope().content_checks.splice(index, 1);
+  else if (button.dataset.kind === "high_risk") activeScope().high_risk_paths.splice(index, 1);
   else activeScope().whitelist_paths.splice(index, 1);
   renderRuleRows(); updateRuleSummary();
 }
@@ -318,10 +354,10 @@ async function publishDraft() {
 
 ruleUi.rulesNav.addEventListener("click", showRulesView); ruleUi.archiveNav.addEventListener("click", showArchiveView);
 ruleUi.refresh.addEventListener("click", () => loadRuleHistory()); ruleUi.newDraft.addEventListener("click", createRuleDraft);
-ruleUi.addMapping.addEventListener("click", addMapping); ruleUi.addWhitelist.addEventListener("click", addWhitelist); ruleUi.addContent.addEventListener("click", addContentCheck);
-ruleUi.mappingRows.addEventListener("input", handleRuleInput); ruleUi.whitelistRows.addEventListener("input", handleRuleInput); ruleUi.contentRows.addEventListener("input", handleRuleInput); ruleUi.contentRows.addEventListener("change", handleRuleInput);
+ruleUi.addMapping.addEventListener("click", addMapping); ruleUi.addWhitelist.addEventListener("click", addWhitelist); ruleUi.addHighRisk.addEventListener("click", addHighRisk); ruleUi.addContent.addEventListener("click", addContentCheck);
+ruleUi.mappingRows.addEventListener("input", handleRuleInput); ruleUi.whitelistRows.addEventListener("input", handleRuleInput); ruleUi.highRiskRows.addEventListener("input", handleRuleInput); ruleUi.contentRows.addEventListener("input", handleRuleInput); ruleUi.contentRows.addEventListener("change", handleRuleInput);
 ruleUi.ruleSetId.addEventListener("input", handleRuleInput); ruleUi.notes.addEventListener("input", handleRuleInput);
-ruleUi.mappingRows.addEventListener("click", removeRuleRow); ruleUi.whitelistRows.addEventListener("click", removeRuleRow); ruleUi.contentRows.addEventListener("click", removeRuleRow);
+ruleUi.mappingRows.addEventListener("click", removeRuleRow); ruleUi.whitelistRows.addEventListener("click", removeRuleRow); ruleUi.highRiskRows.addEventListener("click", removeRuleRow); ruleUi.contentRows.addEventListener("click", removeRuleRow);
 ruleUi.publish.addEventListener("click", openPublishDialog);
 ruleUi.scopes.addEventListener("click", (event) => { const button = event.target.closest("[data-scope]"); if (!button) return; ruleState.scope = button.dataset.scope; renderRuleEditor(); });
 ruleUi.history.addEventListener("click", (event) => { const button = event.target.closest(".rule-history-item"); if (button && !ruleState.loading) loadRuleDetail(button.dataset.ruleId, button.dataset.version); });

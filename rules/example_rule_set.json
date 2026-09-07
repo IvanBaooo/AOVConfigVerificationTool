@@ -18,6 +18,7 @@
       }
     ],
     "whitelist_paths": [],
+    "high_risk_paths": [],
     "content_checks": [
       {
         "id": "skin-sale-change-check",
@@ -36,21 +37,25 @@
     "TW": {
       "path_mappings": [],
       "whitelist_paths": [],
+      "high_risk_paths": [],
       "content_checks": []
     },
     "TH": {
       "path_mappings": [],
       "whitelist_paths": [],
+      "high_risk_paths": [],
       "content_checks": []
     },
     "VN": {
       "path_mappings": [],
       "whitelist_paths": [],
+      "high_risk_paths": [],
       "content_checks": []
     },
     "ID": {
       "path_mappings": [],
       "whitelist_paths": [],
+      "high_risk_paths": [],
       "content_checks": []
     }
   }

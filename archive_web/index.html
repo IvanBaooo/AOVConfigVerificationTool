@@ -488,10 +488,25 @@
               <div class="rule-empty" id="whitelist-empty">当前范围没有白名单规则</div>
             </section>
 
+            <section class="rule-edit-section" aria-labelledby="high-risk-heading">
+              <div class="rule-section-heading">
+                <div>
+                  <span class="section-number">03</span>
+                  <div>
+                    <h3 id="high-risk-heading">提交高危名单</h3>
+                    <p>命中高危路径的提交需人工确认后才可继续打包</p>
+                  </div>
+                </div>
+                <button class="button button-secondary" id="add-high-risk" type="button" disabled>+ 添加规则</button>
+              </div>
+              <div class="whitelist-editor" id="high-risk-rows"></div>
+              <div class="rule-empty" id="high-risk-empty">当前范围没有高危名单规则</div>
+            </section>
+
             <details class="rule-edit-section content-check-section" id="content-check-panel">
               <summary class="content-check-summary">
                 <div>
-                  <span class="section-number">03</span>
+                  <span class="section-number">04</span>
                   <div>
                     <h3 id="content-check-heading">表内容校验</h3>
                     <p>读取 DTXML，检查皮肤长期上下架状态、短期促销时间与促销 ID 关联</p>
@@ -503,6 +518,7 @@
                 </div>
               </summary>
               <div class="content-check-panel-body" aria-labelledby="content-check-heading">
+                <datalist id="rule-check-type-options"></datalist>
                 <div class="content-check-actions">
                   <span>当前范围配置</span>
                   <button class="button button-secondary" id="add-content-check" type="button" disabled>+ 添加校验</button>

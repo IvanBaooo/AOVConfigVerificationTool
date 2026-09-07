@@ -55,6 +55,7 @@ def built_in_rule_set(region_code: str) -> dict[str, object]:
 		"rules": {
 			"path_mappings": [],
 			"whitelist_paths": [],
+			"high_risk_paths": [],
 		},
 	}
 	effective["rule_hash"] = rule_sha256(effective)

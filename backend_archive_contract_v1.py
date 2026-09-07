@@ -201,6 +201,8 @@ def _validate_final_payload(payload: Mapping[str, Any]) -> None:
 		_validate_fixed_path(scope_root, f"commit_record.scope_roots[{index}]")
 	for index, fixed_path in enumerate(commit_record.get("whitelisted_paths", [])):
 		_validate_fixed_path(fixed_path, f"commit_record.whitelisted_paths[{index}]")
+	for index, fixed_path in enumerate(commit_record.get("high_risk_paths", [])):
+		_validate_fixed_path(fixed_path, f"commit_record.high_risk_paths[{index}]")
 	for index, warning in enumerate(commit_record.get("warnings", [])):
 		warning_data = _mapping(warning, f"commit_record.warnings[{index}]")
 		if warning_data.get("fixed_path"):

@@ -1182,6 +1182,7 @@ class ArchiveRepository:
 			regions = payload.get("regions", {})
 			mapping_count = len(common.get("path_mappings", [])) if isinstance(common, dict) else 0
 			whitelist_count = len(common.get("whitelist_paths", [])) if isinstance(common, dict) else 0
+			high_risk_count = len(common.get("high_risk_paths", [])) if isinstance(common, dict) else 0
 			content_check_count = len(common.get("content_checks", [])) if isinstance(common, dict) else 0
 			if isinstance(regions, dict):
 				for region_rules in regions.values():
@@ -1189,6 +1190,7 @@ class ArchiveRepository:
 						continue
 					mapping_count += len(region_rules.get("path_mappings", []))
 					whitelist_count += len(region_rules.get("whitelist_paths", []))
+					high_risk_count += len(region_rules.get("high_risk_paths", []))
 					content_check_count += len(region_rules.get("content_checks", []))
 			items.append({
 				"rule_set_id": payload.get("rule_set_id", ""),
@@ -1199,6 +1201,7 @@ class ArchiveRepository:
 				"created_at": row["created_at"],
 				"mapping_count": mapping_count,
 				"whitelist_count": whitelist_count,
+				"high_risk_count": high_risk_count,
 				"content_check_count": content_check_count,
 			})
 		return {"items": items, "total": total, "limit": limit, "offset": offset}

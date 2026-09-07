@@ -6,6 +6,7 @@ import unittest
 from rules.sets import (
 	ValidationRuleSetError,
 	effective_rule_set,
+	rule_sha256,
 	validate_effective_rule_set,
 	validate_rule_set,
 )
@@ -134,7 +135,40 @@ class ValidationRuleSetTests(unittest.TestCase):
 			["/CommonIgnored.xml", "/TwIgnored.xml"],
 			rules["whitelist_paths"],
 		)
+		self.assertEqual([], rules["high_risk_paths"])
 		self.assertEqual(64, len(effective["rule_hash"]))
+		self.assertEqual(effective, validate_effective_rule_set(effective))
+
+	def test_high_risk_paths_from_common_and_region_are_merged(self) -> None:
+		rule_set = copy.deepcopy(sample_rule_set())
+		rule_set["common"]["high_risk_paths"] = ["CommonRisk.xml", "/Shared/Risk.bytes"]
+		rule_set["regions"]["TW"]["high_risk_paths"] = ["TwRisk.xml", "CommonRisk.xml"]
+
+		validated = validate_rule_set(rule_set)
+		self.assertEqual(
+			["/CommonRisk.xml", "/Shared/Risk.bytes"],
+			validated["common"]["high_risk_paths"],
+		)
+		effective = effective_rule_set(rule_set, "TW")
+
+		self.assertEqual(
+			["/CommonRisk.xml", "/Shared/Risk.bytes", "/TwRisk.xml"],
+			effective["rules"]["high_risk_paths"],
+		)
+		self.assertEqual(effective, validate_effective_rule_set(effective))
+
+	def test_high_risk_paths_reject_non_string_lists(self) -> None:
+		for value in ("Risk.xml", ["/Risk.xml", 7], {"path": "/Risk.xml"}):
+			rule_set = copy.deepcopy(sample_rule_set())
+			rule_set["common"]["high_risk_paths"] = value
+			with self.subTest(value=value), self.assertRaisesRegex(ValidationRuleSetError, "high_risk_paths"):
+				validate_rule_set(rule_set)
+
+	def test_effective_rule_set_without_high_risk_paths_still_validates(self) -> None:
+		effective = effective_rule_set(sample_rule_set(), "TW")
+		del effective["rules"]["high_risk_paths"]
+		effective["rule_hash"] = rule_sha256({key: effective[key] for key in effective if key != "rule_hash"})
+
 		self.assertEqual(effective, validate_effective_rule_set(effective))
 
 	def test_regional_content_check_overrides_common_by_id(self) -> None:

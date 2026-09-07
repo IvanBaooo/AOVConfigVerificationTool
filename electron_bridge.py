@@ -40,6 +40,7 @@ from svn_commit_pack_input import build_packer_file_list_from_svn_log
 from svn_commit_validation import RevisionSpecError, normalize_fixed_path
 from svn_dtxml_changeset import infer_tdr_svn_target
 from svn_pack_source import PackSourceError, historical_pack_root, inspect_pack_source
+from svn_path_policy import normalize_policy_path
 from changeset_modules import ModuleContext, run_changeset_modules
 from showcase_studio import (
 	BYTES_BY_DFXML,
@@ -98,6 +99,22 @@ def _split_lines(value: object) -> list[str]:
 		for item in text.replace("；", "\n").replace("，", "\n").replace(",", "\n").splitlines()
 		if item.strip() and not item.strip().startswith("#")
 	]
+
+
+def _union_remote_local_paths(remote: object, local: object) -> list[str] | None:
+	"""远程下发为基底、本地追加在后，按归一化路径大小写不敏感去重；远程为空返回 None（不动本地）。"""
+	if not isinstance(remote, list) or not remote:
+		return None
+	merged = [str(path) for path in remote]
+	seen = {normalize_policy_path(path).casefold() for path in merged}
+	if isinstance(local, list):
+		for path in local:
+			text = str(path)
+			key = normalize_policy_path(text).casefold()
+			if key not in seen:
+				seen.add(key)
+				merged.append(text)
+	return merged
 
 
 def renderer_settings(settings: Mapping[str, object]) -> dict[str, object]:
@@ -189,6 +206,7 @@ def build_validation_config(payload: Mapping[str, object], svn_log_text: str) ->
 		"last_external_time": _string(payload.get("last_external_time")),
 		"scope_roots": _split_lines(payload.get("scope_roots")) or [scope_root_for_region(region)],
 		"whitelist_paths": _split_lines(payload.get("commit_whitelist")),
+		"high_risk_paths": _split_lines(payload.get("commit_high_risk")),
 		"package_region_filter_enabled": _boolean(payload.get("enable_region_filter"), True),
 	}
 	if input_method == "revision_spec":
@@ -614,8 +632,10 @@ class ElectronBridgeService:
 		rule_load: RuleLoadResult,
 		settings: Mapping[str, object],
 	) -> None:
-		"""把拉到的规则集写入 validation_config：规则内容覆盖默认，元数据进 report。
+		"""把拉到的规则集写入 validation_config，元数据进 report。
 
+		content_checks/path_mappings 由下发覆盖默认；whitelist_paths/high_risk_paths
+		与本地设置页名单并集合并（下发在前、本地追加在后，远程空列表不动本地）。
 		rule_set 元数据字段与 backend_archive_contract_v1 的校验要求对齐
 		（SAFE_ID_PATTERN、64 位 hex rule_hash、RFC3339 published_at、
 		source ∈ remote/local_cache/built_in），否则归档会失败。
@@ -637,9 +657,10 @@ class ElectronBridgeService:
 					commit_record["path_mappings"] = [
 						dict(mapping) for mapping in path_mappings if isinstance(mapping, dict)
 					]
-				whitelist_paths = rules.get("whitelist_paths")
-				if isinstance(whitelist_paths, list) and whitelist_paths:
-					commit_record["whitelist_paths"] = [str(path) for path in whitelist_paths]
+				for key in ("whitelist_paths", "high_risk_paths"):
+					merged_paths = _union_remote_local_paths(rules.get(key), commit_record.get(key))
+					if merged_paths is not None:
+						commit_record[key] = merged_paths
 		validation_config["rule_set"] = {
 			"rule_set_id": str(rule_set.get("rule_set_id") or "built-in"),
 			"version": str(rule_set.get("version") or "1"),
