@@ -378,6 +378,48 @@ class ArchiveRepositoryTests(unittest.TestCase):
 		self.assertEqual(rules["hidden_item_listing"]["acknowledged_count"], 0)
 		self.assertEqual(stats["covered_archives"], 2)
 
+	def test_rule_trigger_stats_includes_triggering_packages(self) -> None:
+		first, second, legacy = self._rule_stats_payloads()
+		first_checks = {entry["type"]: entry for entry in first["validation"]["checks"]}
+		first_checks["hidden_item_listing"]["tables"] = ["道具信息表", "道具信息表"]
+		for payload in (first, second, legacy):
+			self.repository.create_archive(payload)
+
+		stats = self.repository.rule_trigger_stats()
+
+		rules = {rule["type"]: rule for rule in stats["rules"]}
+		self.assertEqual(
+			rules["hidden_item_listing"]["packages"],
+			[
+				{"package_id": first["package_id"], "warnings": 2, "confirms": 0},
+				{"package_id": second["package_id"], "warnings": 1, "confirms": 0},
+			],
+		)
+		self.assertEqual(
+			rules["skin_sale_change_check"]["packages"],
+			[
+				{"package_id": first["package_id"], "warnings": 0, "confirms": 3},
+				{"package_id": second["package_id"], "warnings": 1, "confirms": 0},
+			],
+		)
+		triggered_ids = {
+			entry["package_id"] for rule in stats["rules"] for entry in rule["packages"]
+		}
+		self.assertNotIn(legacy["package_id"], triggered_ids)
+
+		tables = {entry["table"]: entry for entry in stats["tables"]}
+		self.assertEqual(tables["道具信息表"]["problem_count"], 5)
+		self.assertEqual(
+			tables["道具信息表"]["packages"],
+			[first["package_id"], second["package_id"]],
+		)
+		self.assertEqual(
+			tables["英雄皮肤促销表"]["packages"],
+			[first["package_id"], second["package_id"]],
+		)
+		for entry in stats["tables"]:
+			self.assertEqual(len(entry["packages"]), len(set(entry["packages"])))
+
 	def test_rule_trigger_stats_filters_by_region_and_days(self) -> None:
 		first, second, legacy = self._rule_stats_payloads()
 		for payload in (first, second, legacy):

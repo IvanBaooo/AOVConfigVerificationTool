@@ -821,6 +821,59 @@ button.heatmap-cell:focus-visible {
 
 .rule-bar-stat-error { color: var(--red); }
 
+.rule-bar-row-expandable { cursor: pointer; }
+
+.rule-bar-toggle {
+  flex: 0 0 auto;
+  color: var(--faint);
+  font-size: 11px;
+  transition: transform 0.15s ease;
+}
+
+.rule-bar-row-open .rule-bar-toggle { transform: rotate(90deg); }
+
+.rule-bar-packages {
+  display: grid;
+  gap: 2px;
+  margin-top: 8px;
+  padding: 4px;
+  background: var(--surface-sunken);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+
+.rule-bar-package {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 5px 8px;
+  color: var(--ink);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: 11.5px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.rule-bar-package:hover { background: var(--surface); }
+
+.rule-bar-package code {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rule-bar-package-stats {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+}
+
 .rule-stats-frame > .table-state {
   inset: 0;
   border-radius: var(--radius-md);

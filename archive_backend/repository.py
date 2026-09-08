@@ -997,17 +997,20 @@ class ArchiveRepository:
 		where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
 		with self._open_connection() as connection:
 			rows = connection.execute(
-				f"SELECT payload_json FROM package_archives{where}",
+				f"SELECT package_id, payload_json FROM package_archives{where}",
 				parameters,
 			).fetchall()
 
 		triggered_statuses = {"warning", "error", "confirm"}
 		rule_stats: dict[tuple[str, str], dict[str, object]] = {}
+		rule_packages: dict[tuple[str, str], dict[str, dict[str, int]]] = {}
 		table_stats: dict[str, int] = {}
+		table_packages: dict[str, dict[str, int]] = {}
 		covered_archives = 0
 		skipped_legacy = 0
 		whitelist_exemptions = 0
 		for row in rows:
+			package_id = str(row["package_id"])
 			payload = json.loads(row["payload_json"])
 			validation = payload.get("validation")
 			if not isinstance(validation, dict):
@@ -1033,6 +1036,7 @@ class ArchiveRepository:
 					if ack_type:
 						acknowledged[ack_type] = acknowledged.get(ack_type, 0) + 1
 			triggered_in_archive: dict[tuple[str, str], dict[str, int]] = {}
+			table_weights_in_archive: dict[str, int] = {}
 			for check in checks:
 				if not isinstance(check, dict):
 					continue
@@ -1059,8 +1063,17 @@ class ArchiveRepository:
 					weight = warning_count + item_count
 					for table in tables:
 						if isinstance(table, str) and table:
-							table_stats[table] = table_stats.get(table, 0) + weight
+							table_weights_in_archive[table] = table_weights_in_archive.get(table, 0) + weight
+			for table, weight in table_weights_in_archive.items():
+				table_stats[table] = table_stats.get(table, 0) + weight
+				per_package = table_packages.setdefault(table, {})
+				per_package[package_id] = per_package.get(package_id, 0) + weight
 			for key, entry in triggered_in_archive.items():
+				per_rule_packages = rule_packages.setdefault(key, {})
+				per_rule_packages[package_id] = {
+					"warnings": entry["warnings"],
+					"confirms": entry["confirms"],
+				}
 				stats = rule_stats.setdefault(
 					key,
 					{
@@ -1079,13 +1092,39 @@ class ArchiveRepository:
 				stats["error_archives"] += entry["errors"]
 				stats["acknowledged_count"] += acknowledged.get(key[0], 0)
 
+		for key, stats in rule_stats.items():
+			packages = rule_packages.get(key, {})
+			stats["packages"] = [
+				{
+					"package_id": package_id,
+					"warnings": counts["warnings"],
+					"confirms": counts["confirms"],
+				}
+				for package_id, counts in sorted(
+					packages.items(),
+					key=lambda item: (
+						-(item[1]["warnings"] + item[1]["confirms"]),
+						item[0],
+					),
+				)
+			]
 		rules = sorted(
 			rule_stats.values(),
 			key=lambda item: (-int(item["triggered_archives"]), str(item["name"]), str(item["type"])),
 		)
 		tables = sorted(
 			(
-				{"table": table, "problem_count": count}
+				{
+					"table": table,
+					"problem_count": count,
+					"packages": [
+						package_id
+						for package_id, weight in sorted(
+							table_packages.get(table, {}).items(),
+							key=lambda item: (-item[1], item[0]),
+						)
+					],
+				}
 				for table, count in table_stats.items()
 			),
 			key=lambda item: (-int(item["problem_count"]), str(item["table"])),

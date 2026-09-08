@@ -521,13 +521,25 @@ function renderRuleStats(payload) {
     const confirms = Number(rule.confirm_count) || 0;
     const errors = Number(rule.error_archives) || 0;
     const acknowledged = Number(rule.acknowledged_count) || 0;
+    const packages = Array.isArray(rule.packages) ? rule.packages : [];
     const warningWidth = (warnings / ruleMax) * 100;
     const confirmWidth = (confirms / ruleMax) * 100;
+    const packageRows = packages.map((entry) => {
+      const entryWarnings = Number(entry.warnings) || 0;
+      const entryConfirms = Number(entry.confirms) || 0;
+      return `
+        <button type="button" class="rule-bar-package" data-package-id="${escapeHtml(entry.package_id)}">
+          <code>${escapeHtml(entry.package_id)}</code>
+          <span class="rule-bar-package-stats">告警 ${entryWarnings} · 待确认 ${entryConfirms}</span>
+        </button>
+      `;
+    }).join("");
     return `
-      <div class="rule-bar-row">
+      <div class="rule-bar-row${packages.length ? " rule-bar-row-expandable" : ""}"${packages.length ? ' data-expandable="true"' : ""}>
         <div class="rule-bar-head">
           <span class="rule-bar-name" title="${escapeHtml(rule.type)}">${escapeHtml(rule.name)}</span>
           <span class="rule-bar-count">${escapeHtml(rule.triggered_archives)} 归档触发</span>
+          ${packages.length ? '<span class="rule-bar-toggle" aria-hidden="true">▸</span>' : ""}
         </div>
         <div class="rule-bar-track" role="img" aria-label="告警 ${warnings} 条，待确认 ${confirms} 条">
           ${warnings ? `<span class="rule-bar-seg rule-bar-seg-warning" style="width:${warningWidth}%"></span>` : ""}
@@ -539,6 +551,7 @@ function renderRuleStats(payload) {
           ${acknowledged ? `<span class="rule-bar-stat rule-bar-stat-acked">已确认 ${acknowledged}</span>` : ""}
           ${errors ? `<span class="rule-bar-stat rule-bar-stat-error">错误归档 ${errors}</span>` : ""}
         </div>
+        ${packages.length ? `<div class="rule-bar-packages" hidden>${packageRows}</div>` : ""}
       </div>
     `;
   }).join("");
@@ -547,15 +560,23 @@ function renderRuleStats(payload) {
   elements.ruleStatsTables.innerHTML = tables.map((table) => {
     const count = Number(table.problem_count) || 0;
     const width = (count / tableMax) * 100;
+    const packages = Array.isArray(table.packages) ? table.packages : [];
+    const packageRows = packages.map((packageId) => `
+      <button type="button" class="rule-bar-package" data-package-id="${escapeHtml(packageId)}">
+        <code>${escapeHtml(packageId)}</code>
+      </button>
+    `).join("");
     return `
-      <div class="rule-bar-row">
+      <div class="rule-bar-row${packages.length ? " rule-bar-row-expandable" : ""}"${packages.length ? ' data-expandable="true"' : ""}>
         <div class="rule-bar-head">
           <span class="rule-bar-name">${escapeHtml(table.table)}</span>
           <span class="rule-bar-count">${count} 问题</span>
+          ${packages.length ? '<span class="rule-bar-toggle" aria-hidden="true">▸</span>' : ""}
         </div>
         <div class="rule-bar-track" role="img" aria-label="问题 ${count} 条">
           ${count ? `<span class="rule-bar-seg rule-bar-seg-warning" style="width:${width}%"></span>` : ""}
         </div>
+        ${packages.length ? `<div class="rule-bar-packages" hidden>${packageRows}</div>` : ""}
       </div>
     `;
   }).join("");
@@ -572,6 +593,22 @@ function renderRuleStats(payload) {
   } else {
     setDashboardState(elements.ruleStatsState);
   }
+}
+
+function handleRuleStatsClick(event) {
+  const packageButton = event.target.closest(".rule-bar-package");
+  if (packageButton) {
+    event.stopPropagation();
+    if (packageButton.dataset.packageId) loadDetail(packageButton.dataset.packageId);
+    return;
+  }
+  const row = event.target.closest(".rule-bar-row[data-expandable]");
+  if (!row || !event.currentTarget.contains(row)) return;
+  const packages = row.querySelector(".rule-bar-packages");
+  if (!packages) return;
+  const expanded = packages.hasAttribute("hidden");
+  packages.toggleAttribute("hidden", !expanded);
+  row.classList.toggle("rule-bar-row-open", expanded);
 }
 
 async function loadRuleStats() {
@@ -1274,6 +1311,9 @@ elements.resetButton.addEventListener("click", () => {
 });
 
 elements.filterDateChipClear.addEventListener("click", applyListFilters);
+
+elements.ruleStatsRules.addEventListener("click", handleRuleStatsClick);
+elements.ruleStatsTables.addEventListener("click", handleRuleStatsClick);
 
 elements.heatmapGrid.addEventListener("click", (event) => {
   const cell = event.target.closest("[data-date]");
