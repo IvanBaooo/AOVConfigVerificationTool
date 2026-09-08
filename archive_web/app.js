@@ -837,6 +837,34 @@ function renderCheckWarnings(warnings) {
   }).join("")}</ul>`;
 }
 
+function renderCommitRevisionDetails(commit) {
+  const details = Array.isArray(commit?.revision_details) ? commit.revision_details : [];
+  if (!details.length) return "";
+  const rows = details.map((detail, index) => {
+    const files = Array.isArray(detail?.files) ? detail.files : [];
+    const message = String(detail?.message || "").trim();
+    const firstLine = message.split("\n")[0] || "--";
+    const fileItems = files.map((file) => `<li>
+      <code>${escapeHtml(file?.action || "--")}</code>
+      <span class="package-cell">${escapeHtml(file?.fixed_path || "--")}</span>
+      ${file?.readable_name ? `<span class="revision-detail-name">${escapeHtml(file.readable_name)}</span>` : ""}
+    </li>`).join("");
+    return `<li class="revision-detail">
+      <div class="revision-detail-head">
+        <code>r${escapeHtml(detail?.revision)}</code>
+        <span class="revision-detail-author">${escapeHtml(detail?.author || "--")}</span>
+        <span class="revision-detail-message" title="${escapeHtml(message)}">${escapeHtml(firstLine)}</span>
+        ${files.length ? `<button class="file-list-toggle revision-detail-toggle" type="button" data-target="revision-detail-files-${index}" data-expanded="false" data-file-count="${files.length}">${files.length} 个文件</button>` : ""}
+      </div>
+      ${files.length ? `<ul class="revision-detail-files hidden" id="revision-detail-files-${index}">${fileItems}</ul>` : ""}
+    </li>`;
+  }).join("");
+  return `<div class="revision-details">
+    <p class="check-card-note">间隔提交明细（按提交分组，共 ${details.length} 条）</p>
+    <ul class="revision-detail-list">${rows}</ul>
+  </div>`;
+}
+
 function renderValidationChecks(validation) {
   const checks = Array.isArray(validation?.checks) ? validation.checks : [];
   if (!checks.length) {
@@ -1066,6 +1094,10 @@ function renderDetail(archive, management = {}) {
         ${keyValue("未执行", summary.skipped_count || 0)}
       </div>
       ${validationRow("提交记录", commit, `${commit.package_path_count || 0} 个包内路径，${commit.warning_count || 0} 个告警`)}
+      ${renderCommitRevisionDetails(commit)}
+      ${Array.isArray(commit.revision_details) && commit.revision_details.length && Array.isArray(commit.warnings) && commit.warnings.length
+        ? `<p class="check-card-note">按文件聚合视图</p>`
+        : ""}
       ${describeWarnings(commit.warnings)}
       ${renderValidationChecks(validation)}
     </section>
@@ -1113,6 +1145,16 @@ function renderDetail(archive, management = {}) {
       fileToggle.textContent = expanded ? `展开全部（${files.length}）` : "收起";
     });
   }
+  elements.detailContent.querySelectorAll(".revision-detail-toggle").forEach((toggle) => {
+    toggle.addEventListener("click", () => {
+      const target = elements.detailContent.querySelector(`#${toggle.dataset.target}`);
+      if (!target) return;
+      const expanded = toggle.dataset.expanded === "true";
+      target.classList.toggle("hidden", expanded);
+      toggle.dataset.expanded = expanded ? "false" : "true";
+      toggle.textContent = expanded ? `${toggle.dataset.fileCount} 个文件` : "收起";
+    });
+  });
 }
 
 async function confirmArchiveReview(packageId) {
