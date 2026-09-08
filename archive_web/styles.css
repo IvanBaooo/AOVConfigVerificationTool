@@ -832,6 +832,8 @@ button.heatmap-cell:focus-visible {
 
 .rule-bar-row-open .rule-bar-toggle { transform: rotate(90deg); }
 
+.rule-bar-packages[hidden] { display: none; }
+
 .rule-bar-packages {
   display: grid;
   gap: 2px;
