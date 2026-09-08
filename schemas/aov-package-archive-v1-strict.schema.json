@@ -247,7 +247,35 @@
         "whitelisted_paths": { "type": "array", "items": { "$ref": "#/$defs/fixed_path" } },
         "high_risk_hit_count": { "$ref": "#/$defs/count" },
         "high_risk_paths": { "type": "array", "items": { "$ref": "#/$defs/fixed_path" } },
-        "warnings": { "type": "array", "items": { "$ref": "#/$defs/commit_warning" } }
+        "warnings": { "type": "array", "items": { "$ref": "#/$defs/commit_warning" } },
+        "revision_details": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/commit_revision_detail" }
+        }
+      }
+    },
+    "commit_revision_detail": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["revision", "author", "date", "message", "files"],
+      "properties": {
+        "revision": { "type": "integer", "minimum": 1 },
+        "author": { "type": "string" },
+        "date": { "type": "string" },
+        "message": { "type": "string" },
+        "files": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["fixed_path", "action"],
+            "properties": {
+              "fixed_path": { "$ref": "#/$defs/fixed_path" },
+              "action": { "type": "string", "minLength": 1 },
+              "readable_name": { "type": "string" }
+            }
+          }
+        }
       }
     },
     "check_entry": {

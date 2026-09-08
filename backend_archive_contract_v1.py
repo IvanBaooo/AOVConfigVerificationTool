@@ -207,6 +207,14 @@ def _validate_final_payload(payload: Mapping[str, Any]) -> None:
 		warning_data = _mapping(warning, f"commit_record.warnings[{index}]")
 		if warning_data.get("fixed_path"):
 			_validate_fixed_path(warning_data["fixed_path"], f"commit_record.warnings[{index}].fixed_path")
+	for index, detail in enumerate(commit_record.get("revision_details", [])):
+		detail_data = _mapping(detail, f"commit_record.revision_details[{index}]")
+		for file_index, file_entry in enumerate(detail_data.get("files", [])):
+			file_data = _mapping(file_entry, f"commit_record.revision_details[{index}].files[{file_index}]")
+			_validate_fixed_path(
+				file_data.get("fixed_path"),
+				f"commit_record.revision_details[{index}].files[{file_index}].fixed_path",
+			)
 
 	checks = validation.get("checks")
 	if not isinstance(checks, list):

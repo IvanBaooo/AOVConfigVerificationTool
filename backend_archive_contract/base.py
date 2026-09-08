@@ -59,9 +59,10 @@ def _public_message(value: object) -> str:
 	if not isinstance(value, str):
 		return ""
 	message = value.strip().replace("\r", " ").replace("\n", " ")
+	message = re.sub(r"\\[nrt]", " ", message)
 	if WINDOWS_ABSOLUTE_PATH_PATTERN.search(message):
 		return ""
-	return message
+	return message.replace("\\", "/")
 
 
 def _non_negative_integer(value: object, field: str) -> int:
@@ -259,6 +260,45 @@ def _copy_commit_warning(value: object) -> dict[str, object]:
 	return result
 
 
+def _copy_revision_details(value: object) -> list[dict[str, object]]:
+	if value is None:
+		return []
+	if not isinstance(value, list):
+		raise ArchiveContractError("Expected revision detail list: commit_record.revision_details")
+	result: list[dict[str, object]] = []
+	for index, raw_detail in enumerate(value):
+		detail = _mapping(raw_detail)
+		field = f"commit_record.revision_details[{index}]"
+		revision = detail.get("revision")
+		if type(revision) is not int or revision <= 0:
+			raise ArchiveContractError(f"Expected positive revision: {field}.revision")
+		files = detail.get("files", [])
+		if not isinstance(files, list):
+			raise ArchiveContractError(f"Expected file list: {field}.files")
+		copied_files: list[dict[str, object]] = []
+		for file_index, raw_file in enumerate(files):
+			file_info = _mapping(raw_file)
+			file_field = f"{field}.files[{file_index}]"
+			item: dict[str, object] = {
+				"fixed_path": _safe_fixed_path(file_info.get("fixed_path"), f"{file_field}.fixed_path"),
+				"action": _required_text(file_info, "action", f"{file_field}.action"),
+			}
+			readable_name = _optional_text(file_info, "readable_name")
+			if readable_name:
+				item["readable_name"] = readable_name
+			copied_files.append(item)
+		result.append(
+			{
+				"revision": revision,
+				"author": _optional_text(detail, "author"),
+				"date": _optional_text(detail, "date"),
+				"message": _public_message(detail.get("message")),
+				"files": copied_files,
+			}
+		)
+	return result
+
+
 def _copy_files(value: object) -> list[dict[str, object]]:
 	if not isinstance(value, list):
 		raise ArchiveContractError("Expected file list: files")
@@ -440,6 +480,7 @@ def build_archive_record(report: Mapping[str, Any]) -> dict[str, object]:
 					_safe_fixed_path(path, "commit_record.high_risk_paths") for path in high_risk_paths
 				],
 				"warnings": [_copy_commit_warning(warning) for warning in warnings],
+				"revision_details": _copy_revision_details(commit_record.get("revision_details")),
 			},
 			"checks": [
 				_copy_check_entry(check_type, check_value)

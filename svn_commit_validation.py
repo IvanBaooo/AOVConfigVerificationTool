@@ -383,6 +383,7 @@ def run_commit_record_check(
 	change_by_revision = {change.revision: change for change in revision_changes}
 
 	warning_groups: Dict[Tuple[str, str], Dict[str, object]] = {}
+	revision_details: List[Dict[str, object]] = []
 	unresolved_gap_revisions: List[int] = []
 	unresolved_selected_revisions: List[int] = []
 
@@ -398,6 +399,7 @@ def run_commit_record_check(
 		if change is None:
 			unresolved_gap_revisions.append(revision)
 			continue
+		detail_files: Dict[str, Dict[str, object]] = {}
 		for changed_path in change.paths:
 			if not _path_in_scope(changed_path.fixed_path, scope_roots):
 				continue
@@ -410,6 +412,21 @@ def run_commit_record_check(
 				input_method=input_method,
 				path_mappings=path_mappings,
 			)
+			if changed_path.fixed_path not in detail_files:
+				description = describe_svn_path(changed_path.fixed_path, path_mappings)
+				detail_files[changed_path.fixed_path] = {
+					"fixed_path": changed_path.fixed_path,
+					"action": changed_path.action,
+					"readable_name": description["readable_name"],
+				}
+		if detail_files:
+			revision_details.append({
+				"revision": revision,
+				"author": change.author,
+				"date": change.date,
+				"message": change.message,
+				"files": [detail_files[key] for key in sorted(detail_files)],
+			})
 
 	for revision in current_revisions:
 		change = change_by_revision.get(revision)
@@ -483,4 +500,5 @@ def run_commit_record_check(
 		},
 		"warning_count": len(warnings),
 		"warnings": warnings,
+		"revision_details": revision_details,
 	}
