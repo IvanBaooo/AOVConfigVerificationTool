@@ -119,6 +119,39 @@ class SkinSaleChangeCheckTests(unittest.TestCase):
         self.assertEqual("warning", result["status"])
         self.assertEqual("skin_row_deleted", result["warnings"][0]["type"])
 
+    def test_deleted_row_readded_identical_passes_as_migration(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tdr_root = Path(tmp)
+            write_skin_dtxml(tdr_root, [{"ID": "51015", "皮肤ID": "13109", "皮肤名称": "好运信使"}])
+            row = {"促销特卖ID": "510152", "皮肤ID": "51015", "是否可点券购买": "否", "点券价格": "9999"}
+            result = self._run(tdr_root, [
+                {"sheet": SKIN_PROMO_SHEET, "change_type": "deleted", "before": row},
+                {"sheet": "皮肤促销特卖", "change_type": "added", "after": dict(row)},
+            ])
+        self.assertEqual("passed", result["status"])
+        self.assertEqual([], result["warnings"])
+        self.assertEqual(1, result["passed_count"])
+        migrated = result["passed_items"][0]
+        self.assertEqual("skin_row_migrated", migrated["type"])
+        self.assertIn("表迁移", migrated["message"])
+
+    def test_deleted_row_readded_with_changes_needs_confirm(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tdr_root = Path(tmp)
+            write_skin_dtxml(tdr_root, [{"ID": "51015", "皮肤ID": "13109", "皮肤名称": "好运信使"}])
+            before = {"促销特卖ID": "510152", "皮肤ID": "51015", "是否可点券购买": "否", "点券价格": "9999"}
+            after = dict(before, **{"点券价格": "588"})
+            result = self._run(tdr_root, [
+                {"sheet": SKIN_PROMO_SHEET, "change_type": "deleted", "before": before},
+                {"sheet": "皮肤促销特卖", "change_type": "added", "after": after},
+            ])
+        self.assertEqual("confirm", result["status"])
+        self.assertEqual(1, result["item_count"])
+        self.assertEqual([], result["warnings"])
+        changed = result["items"][0]
+        self.assertEqual("skin_row_migrated_changed", changed["type"])
+        self.assertIn("差异", changed["message"])
+
     def test_no_skin_table_change_skips(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tdr_root = Path(tmp)

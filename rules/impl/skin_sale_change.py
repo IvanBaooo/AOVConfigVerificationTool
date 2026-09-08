@@ -20,6 +20,10 @@ SKIN_SHEET_LABELS = {
     SKIN_LISTING_SHEET: "皮肤上下架表",
     SKIN_PROMO_SHEET: "皮肤促销特卖",
 }
+SKIN_CLIENT_SHEET_BY_SVR = {
+    SKIN_LISTING_SHEET: "皮肤上下架表",
+    SKIN_PROMO_SHEET: "皮肤促销特卖",
+}
 SKIN_ID_COLUMN = "皮肤ID"
 SKIN_NAME_COLUMN = "皮肤名称"
 PROMO_ID_COLUMN = "促销特卖ID"
@@ -43,6 +47,49 @@ def _skin_table_changes(changeset_changes: List[Dict[str, object]]) -> List[Dict
             continue
         matched.append(change)
     return matched
+
+
+def _skin_client_sheet_changes(changeset_changes: List[Dict[str, object]]) -> List[Dict[str, object]]:
+    """从 changeset 提取皮肤促销表客户端 sheet 的行级变更（用于识别服务器表→客户端表迁移）。"""
+    matched: List[Dict[str, object]] = []
+    client_sheets = set(SKIN_CLIENT_SHEET_BY_SVR.values())
+    for change in changeset_changes:
+        if not isinstance(change, dict):
+            continue
+        file_name = str(change.get("file_name") or "")
+        sheet = str(change.get("sheet") or "")
+        if SKIN_TABLE_FILE_MARKER not in file_name:
+            continue
+        if sheet not in client_sheets:
+            continue
+        matched.append(change)
+    return matched
+
+
+def _row_business_key(change: Mapping[str, object], row: Mapping[str, object]) -> str:
+    business_key = change.get("business_key")
+    if isinstance(business_key, dict):
+        display = str(business_key.get("display") or "").strip()
+        if display:
+            return display
+    for column in ("ID", PROMO_ID_COLUMN):
+        value = str(row.get(column) or "").strip()
+        if value:
+            return f"{column}={value}"
+    return ""
+
+
+def _migration_key(sheet: str, change: Mapping[str, object], row: Mapping[str, object]) -> str:
+    client_sheet = SKIN_CLIENT_SHEET_BY_SVR.get(sheet)
+    key = _row_business_key(change, row)
+    if not client_sheet or not key:
+        return ""
+    return f"{client_sheet}|{key}"
+
+
+def _rows_equal(left: Mapping[str, object], right: Mapping[str, object]) -> bool:
+    keys = set(left) | set(right)
+    return all(str(left.get(key) or "").strip() == str(right.get(key) or "").strip() for key in keys)
 
 
 def _skin_change_row(change: Mapping[str, object]) -> Dict[str, object]:
@@ -87,7 +134,8 @@ def run_skin_sale_change_check(
       其余字段变更 → 通过级记录。
     - added：上下架表新增皮肤、促销表新增促销均不告警（通过级记录），
       促销按皮肤 ID 关联上下架快照取皮肤名。
-    - deleted：两个表的删行均告警。
+    - deleted：删行先与同文件客户端 sheet 比对——同业务键同内容加回判定为表迁移
+      （通过级记录）；以修改/差异形式加回转人工确认；未加回才告警。
     """
     if changeset_changes is None:
         return {
@@ -147,7 +195,20 @@ def run_skin_sale_change_check(
         return name
 
     warnings: List[Dict[str, object]] = []
+    confirms: List[Dict[str, object]] = []
     passed_items: List[Dict[str, object]] = []
+
+    returned: Dict[str, Dict[str, object]] = {}
+    for client_change in _skin_client_sheet_changes(changeset_changes):
+        client_parsed = _skin_change_row(client_change)
+        client_row: Dict[str, object] = client_parsed["row"]  # type: ignore[assignment]
+        client_sheet = str(client_change.get("sheet") or "")
+        client_key = _row_business_key(client_change, client_row)
+        if client_key:
+            returned[f"{client_sheet}|{client_key}"] = {
+                "change_type": client_parsed["change_type"],
+                "after": client_parsed["after"],
+            }
 
     for change in matched:
         parsed = _skin_change_row(change)
@@ -195,6 +256,32 @@ def run_skin_sale_change_check(
         if change_type == "deleted":
             promo_id = str(row.get(PROMO_ID_COLUMN) or "").strip()
             summary = f"删除促销 {promo_id}" if (sheet == SKIN_PROMO_SHEET and promo_id) else f"删除{sheet_label}行"
+            returned_change = returned.get(_migration_key(sheet, change, row))
+            if returned_change is not None:
+                returned_after: Dict[str, object] = returned_change["after"]  # type: ignore[assignment]
+                if returned_change["change_type"] == "added" and _rows_equal(before, returned_after):
+                    passed_items.append({
+                        "type": "skin_row_migrated",
+                        "level": "passed",
+                        "skin_id": skin_id,
+                        "skin_name": skin_name,
+                        "sheet": sheet_label,
+                        "change_type_label": "删除",
+                        "change_summary": summary,
+                        "message": f"{sheet_label}删除行：{display}，已在客户端表加回且内容一致，判定为表迁移。",
+                    })
+                else:
+                    confirms.append({
+                        "type": "skin_row_migrated_changed",
+                        "level": "confirm",
+                        "skin_id": skin_id,
+                        "skin_name": skin_name,
+                        "sheet": sheet_label,
+                        "change_type_label": "删除",
+                        "change_summary": summary,
+                        "message": f"{sheet_label}删除行：{display}，在客户端表以变更形式加回，需人工确认差异。",
+                    })
+                continue
             warnings.append({
                 "type": "skin_row_deleted",
                 "level": "warning",
@@ -258,18 +345,18 @@ def run_skin_sale_change_check(
             "message": f"{display}变更未涉及售卖方式调整/低价风险。",
         })
 
-    status = "warning" if warnings else "passed"
+    status = "warning" if warnings else ("confirm" if confirms else "passed")
     return {
         "status": status,
         "rule_id": check.get("id", "skin-sale-change-check"),
         "scope": "changeset",
         "changed_count": len(matched),
-        "item_count": len(warnings),
+        "item_count": len(warnings) if status == "warning" else len(confirms),
         "warning_count": len(warnings),
         "passed_count": len(passed_items),
         "catalog_loaded": len(catalog),
         "catalog_error": catalog_error,
         "passed_items": passed_items,
-        "items": warnings,
+        "items": warnings + confirms,
         "warnings": warnings,
     }
