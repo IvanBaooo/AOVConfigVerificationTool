@@ -208,6 +208,35 @@ def run_commit_record_check_optimized(
 	result["ignored_tables"] = _table_summaries(filtered_whitelist)
 	result["warning_count"] = len(kept_warnings)
 	result["statistics"] = statistics
+
+	revision_details = result.get("revision_details")
+	if isinstance(revision_details, list):
+		filtered_details: List[Dict[str, object]] = []
+		for detail in revision_details:
+			if not isinstance(detail, dict):
+				continue
+			files = detail.get("files")
+			if not isinstance(files, list):
+				filtered_details.append(detail)
+				continue
+			kept_files: List[Dict[str, object]] = []
+			for file_info in files:
+				if not isinstance(file_info, dict):
+					continue
+				fixed_path = str(file_info.get("fixed_path") or "")
+				if matching_whitelist_pattern(fixed_path, whitelist_patterns):
+					continue
+				high_risk_pattern = matching_whitelist_pattern(fixed_path, high_risk_patterns)
+				if high_risk_pattern:
+					file_info["high_risk"] = True
+					file_info["high_risk_pattern"] = high_risk_pattern
+				kept_files.append(file_info)
+			if not kept_files:
+				continue
+			detail["files"] = kept_files
+			filtered_details.append(detail)
+		result["revision_details"] = filtered_details
+
 	if result.get("status") == "warning" and not kept_warnings:
 		result["status"] = "passed"
 	return result

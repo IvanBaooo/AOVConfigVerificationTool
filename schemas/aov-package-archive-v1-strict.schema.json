@@ -272,7 +272,9 @@
             "properties": {
               "fixed_path": { "$ref": "#/$defs/fixed_path" },
               "action": { "type": "string", "minLength": 1 },
-              "readable_name": { "type": "string" }
+              "readable_name": { "type": "string" },
+              "high_risk": { "type": "boolean" },
+              "high_risk_pattern": { "type": "string" }
             }
           }
         }

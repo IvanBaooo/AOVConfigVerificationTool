@@ -112,6 +112,53 @@ Changed paths:
 
 		self.assertEqual([101, 102], [detail["revision"] for detail in result["revision_details"]])
 
+	def test_revision_details_respect_whitelist_and_mark_high_risk(self) -> None:
+		svn_log = """\
+r201 | alice | 2026-08-01 09:00:00 +0800 |
+Changed paths:
+   M /repo/ServerBytes/Taiwan/Databin/Server/Actor/Hero_MD5_Android.txt
+
+自动提交 MD5
+
+r202 | bob | 2026-08-01 12:00:00 +0800 |
+Changed paths:
+   M /repo/ServerBytes/Taiwan/Databin/Server/Actor/Hero_MD5.txt
+   M /repo/ServerBytes/Taiwan/Databin/Server/Global/ResSvr2CltIluaCfg.xml
+   M /repo/ServerBytes/Taiwan/Databin/Server/Shop/Current.xml
+
+混合提交
+"""
+		config = _commit_config(svn_log)
+		commit = dict(config["commit_record"])
+		commit["last_external_revision_spec"] = "r200"
+		commit["current_revision_spec"] = "r203"
+		commit["whitelist_paths"] = ["/Hero_MD5*"]
+		commit["high_risk_paths"] = ["/ResSvr2CltIluaCfg*"]
+		config["commit_record"] = commit
+
+		result = run_commit_record_check_optimized(
+			fixed_paths=["/Taiwan/Databin/Server/Shop/Current.xml"],
+			validation_config=config,
+		)
+
+		details = result["revision_details"]
+		self.assertEqual([202], [detail["revision"] for detail in details])
+		files = details[0]["files"]
+		self.assertEqual(
+			[
+				"/Taiwan/Databin/Server/Global/ResSvr2CltIluaCfg.xml",
+				"/Taiwan/Databin/Server/Shop/Current.xml",
+			],
+			[file_info["fixed_path"] for file_info in files],
+		)
+		high_risk_file = files[0]
+		self.assertIs(True, high_risk_file["high_risk"])
+		self.assertEqual("/ResSvr2CltIluaCfg*", high_risk_file["high_risk_pattern"])
+		self.assertNotIn("high_risk", files[1])
+		self.assertEqual([], result["warnings"] and [
+			w for w in result["warnings"] if "Hero_MD5" in str(w.get("fixed_path"))
+		])
+
 	def test_revision_details_survive_archive_contract_and_strict_schema(self) -> None:
 		report = sample_report()
 		report["package"]["file_count"] = 1

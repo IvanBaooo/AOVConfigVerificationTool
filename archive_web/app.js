@@ -848,6 +848,7 @@ function renderCommitRevisionDetails(commit) {
       <code>${escapeHtml(file?.action || "--")}</code>
       <span class="package-cell">${escapeHtml(file?.fixed_path || "--")}</span>
       ${file?.readable_name ? `<span class="revision-detail-name">${escapeHtml(file.readable_name)}</span>` : ""}
+      ${file?.high_risk ? `<span class="badge badge-warning">高危</span>` : ""}
     </li>`).join("");
     return `<li class="revision-detail">
       <div class="revision-detail-head">

@@ -286,6 +286,11 @@ def _copy_revision_details(value: object) -> list[dict[str, object]]:
 			readable_name = _optional_text(file_info, "readable_name")
 			if readable_name:
 				item["readable_name"] = readable_name
+			if file_info.get("high_risk") is True:
+				item["high_risk"] = True
+				high_risk_pattern = _optional_text(file_info, "high_risk_pattern")
+				if high_risk_pattern:
+					item["high_risk_pattern"] = high_risk_pattern
 			copied_files.append(item)
 		result.append(
 			{
