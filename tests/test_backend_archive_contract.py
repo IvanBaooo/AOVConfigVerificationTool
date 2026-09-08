@@ -65,7 +65,7 @@ class BackendArchiveContractTests(unittest.TestCase):
 		entry = check_entry(payload, "expiry_time_cross_check")
 
 		self.assertEqual("道具有效期与活动时间关联校验", entry["name"])
-		self.assertEqual(["道具信息表", "活动表"], entry["tables"])
+		self.assertEqual(["道具信息表"], entry["tables"])
 		self.assertEqual(0, entry["item_count"])
 		self.assertEqual(1, entry["warning_count"])
 

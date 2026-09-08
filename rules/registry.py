@@ -78,7 +78,7 @@ _RULE_SPECS: List[Dict[str, object]] = [
                        "等于或晚于活动结束自动通过，找不到关联活动转人工核对。",
         "default_enabled": True,
         "scope": "changeset",
-        "tables": ["道具信息表", "活动表"],
+        "tables": ["道具信息表"],
         "trigger_paths": [
             "/Databin/Server/Item/SvrItem.bytes",
             "/Databin/Server/Item/SvrItem.xml",
