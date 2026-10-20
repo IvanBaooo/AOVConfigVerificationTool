@@ -197,6 +197,34 @@ class ArchiveRepository:
 					reason TEXT NOT NULL,
 					FOREIGN KEY (package_id) REFERENCES package_archives (package_id)
 				);
+				CREATE TABLE IF NOT EXISTS users (
+					id INTEGER PRIMARY KEY AUTOINCREMENT,
+					email TEXT NOT NULL UNIQUE,
+					display_name TEXT NOT NULL DEFAULT '',
+					role TEXT NOT NULL DEFAULT 'member',
+					status TEXT NOT NULL DEFAULT 'active',
+					created_at TEXT NOT NULL,
+					last_login_at TEXT
+				);
+				CREATE TABLE IF NOT EXISTS web_sessions (
+					session_hash TEXT PRIMARY KEY,
+					user_id INTEGER NOT NULL REFERENCES users (id),
+					created_at TEXT NOT NULL,
+					expires_at TEXT NOT NULL
+				);
+				CREATE INDEX IF NOT EXISTS idx_web_sessions_user
+					ON web_sessions (user_id);
+				CREATE TABLE IF NOT EXISTS api_tokens (
+					id INTEGER PRIMARY KEY AUTOINCREMENT,
+					user_id INTEGER NOT NULL REFERENCES users (id),
+					name TEXT NOT NULL DEFAULT '',
+					token_hash TEXT NOT NULL UNIQUE,
+					created_at TEXT NOT NULL,
+					last_used_at TEXT,
+					revoked_at TEXT
+				);
+				CREATE INDEX IF NOT EXISTS idx_api_tokens_user
+					ON api_tokens (user_id);
 				"""
 			)
 			columns = {row["name"] for row in connection.execute("PRAGMA table_info(package_archives)")}
@@ -251,7 +279,7 @@ class ArchiveRepository:
 						""",
 						(row["region_code"], latest["package_id"], latest["received_at"]),
 					)
-			connection.execute("PRAGMA user_version = 5")
+			connection.execute("PRAGMA user_version = 6")
 
 	def create_archive(self, payload: Mapping[str, Any]) -> CreateArchiveResult:
 		normalized, payload_json, payload_sha256 = _canonical_payload(payload)
@@ -1260,6 +1288,230 @@ class ArchiveRepository:
 	def health_check(self) -> bool:
 		with self._open_connection() as connection:
 			return connection.execute("SELECT 1").fetchone()[0] == 1
+
+	@staticmethod
+	def _user_from_row(row: sqlite3.Row) -> dict[str, object]:
+		return {
+			"id": row["id"],
+			"email": row["email"],
+			"display_name": row["display_name"],
+			"role": row["role"],
+			"status": row["status"],
+			"created_at": row["created_at"],
+			"last_login_at": row["last_login_at"],
+		}
+
+	def count_users(self) -> int:
+		with self._open_connection() as connection:
+			return connection.execute("SELECT COUNT(*) FROM users").fetchone()[0]
+
+	def get_user_by_email(self, email: str) -> dict[str, object] | None:
+		with self._open_connection() as connection:
+			row = connection.execute(
+				"SELECT * FROM users WHERE email = ?", (email,)
+			).fetchone()
+		return self._user_from_row(row) if row else None
+
+	def get_user_by_id(self, user_id: int) -> dict[str, object] | None:
+		with self._open_connection() as connection:
+			row = connection.execute(
+				"SELECT * FROM users WHERE id = ?", (user_id,)
+			).fetchone()
+		return self._user_from_row(row) if row else None
+
+	def create_user(
+		self,
+		email: str,
+		display_name: str = "",
+		role: str = "member",
+	) -> dict[str, object]:
+		with self._open_connection() as connection:
+			cursor = connection.execute(
+				"""
+				INSERT INTO users (email, display_name, role, status, created_at)
+				VALUES (?, ?, ?, 'active', ?)
+				""",
+				(email, display_name, role, _utc_now()),
+			)
+			row = connection.execute(
+				"SELECT * FROM users WHERE id = ?", (cursor.lastrowid,)
+			).fetchone()
+		return self._user_from_row(row)
+
+	def list_users(self) -> list[dict[str, object]]:
+		with self._open_connection() as connection:
+			rows = connection.execute(
+				"SELECT * FROM users ORDER BY created_at ASC, id ASC"
+			).fetchall()
+		return [self._user_from_row(row) for row in rows]
+
+	def update_user(
+		self,
+		user_id: int,
+		*,
+		role: str | None = None,
+		status: str | None = None,
+		display_name: str | None = None,
+	) -> dict[str, object] | None:
+		assignments: list[str] = []
+		values: list[object] = []
+		if role is not None:
+			assignments.append("role = ?")
+			values.append(role)
+		if status is not None:
+			assignments.append("status = ?")
+			values.append(status)
+		if display_name is not None:
+			assignments.append("display_name = ?")
+			values.append(display_name)
+		if not assignments:
+			return self.get_user_by_id(user_id)
+		values.append(user_id)
+		with self._open_connection() as connection:
+			connection.execute(
+				f"UPDATE users SET {', '.join(assignments)} WHERE id = ?",
+				values,
+			)
+		return self.get_user_by_id(user_id)
+
+	def touch_user_login(self, user_id: int) -> None:
+		with self._open_connection() as connection:
+			connection.execute(
+				"UPDATE users SET last_login_at = ? WHERE id = ?",
+				(_utc_now(), user_id),
+			)
+
+	def create_session(
+		self,
+		session_hash: str,
+		user_id: int,
+		expires_at: str,
+	) -> None:
+		with self._open_connection() as connection:
+			connection.execute(
+				"""
+				INSERT INTO web_sessions (session_hash, user_id, created_at, expires_at)
+				VALUES (?, ?, ?, ?)
+				""",
+				(session_hash, user_id, _utc_now(), expires_at),
+			)
+			connection.execute(
+				"DELETE FROM web_sessions WHERE expires_at < ?",
+				(_utc_now(),),
+			)
+
+	def get_session_user(
+		self,
+		session_hash: str,
+		*,
+		slide_to: str | None = None,
+	) -> dict[str, object] | None:
+		with self._open_connection() as connection:
+			row = connection.execute(
+				"""
+				SELECT u.* FROM web_sessions s
+				JOIN users u ON u.id = s.user_id
+				WHERE s.session_hash = ? AND s.expires_at >= ?
+				""",
+				(session_hash, _utc_now()),
+			).fetchone()
+			if row is not None and slide_to is not None:
+				connection.execute(
+					"UPDATE web_sessions SET expires_at = ? WHERE session_hash = ?",
+					(slide_to, session_hash),
+				)
+		return self._user_from_row(row) if row else None
+
+	def delete_session(self, session_hash: str) -> None:
+		with self._open_connection() as connection:
+			connection.execute(
+				"DELETE FROM web_sessions WHERE session_hash = ?",
+				(session_hash,),
+			)
+
+	def create_api_token(
+		self,
+		user_id: int,
+		name: str,
+		token_hash: str,
+	) -> dict[str, object]:
+		with self._open_connection() as connection:
+			cursor = connection.execute(
+				"""
+				INSERT INTO api_tokens (user_id, name, token_hash, created_at)
+				VALUES (?, ?, ?, ?)
+				""",
+				(user_id, name, token_hash, _utc_now()),
+			)
+			row = connection.execute(
+				"SELECT * FROM api_tokens WHERE id = ?", (cursor.lastrowid,)
+			).fetchone()
+		return self._token_from_row(row)
+
+	@staticmethod
+	def _token_from_row(row: sqlite3.Row) -> dict[str, object]:
+		return {
+			"id": row["id"],
+			"user_id": row["user_id"],
+			"name": row["name"],
+			"created_at": row["created_at"],
+			"last_used_at": row["last_used_at"],
+			"revoked_at": row["revoked_at"],
+		}
+
+	def get_token_user(self, token_hash: str) -> dict[str, object] | None:
+		with self._open_connection() as connection:
+			row = connection.execute(
+				"""
+				SELECT u.*, t.id AS token_id FROM api_tokens t
+				JOIN users u ON u.id = t.user_id
+				WHERE t.token_hash = ? AND t.revoked_at IS NULL
+				""",
+				(token_hash,),
+			).fetchone()
+			if row is None:
+				return None
+			connection.execute(
+				"UPDATE api_tokens SET last_used_at = ? WHERE id = ?",
+				(_utc_now(), row["token_id"]),
+			)
+		user = self._user_from_row(row)
+		user["token_id"] = row["token_id"]
+		return user
+
+	def list_api_tokens(self, user_id: int) -> list[dict[str, object]]:
+		with self._open_connection() as connection:
+			rows = connection.execute(
+				"""
+				SELECT * FROM api_tokens
+				WHERE user_id = ? AND revoked_at IS NULL
+				ORDER BY created_at DESC, id DESC
+				""",
+				(user_id,),
+			).fetchall()
+		return [self._token_from_row(row) for row in rows]
+
+	def revoke_api_token(self, token_id: int, user_id: int) -> bool:
+		with self._open_connection() as connection:
+			cursor = connection.execute(
+				"""
+				UPDATE api_tokens SET revoked_at = ?
+				WHERE id = ? AND user_id = ? AND revoked_at IS NULL
+				""",
+				(_utc_now(), token_id, user_id),
+			)
+		return cursor.rowcount > 0
+
+	def disable_user_access(self, user_id: int) -> None:
+		with self._open_connection() as connection:
+			connection.execute(
+				"DELETE FROM web_sessions WHERE user_id = ?",
+				(user_id,),
+			)
+			connection.execute(
+				"UPDATE api_tokens SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL",
+				(_utc_now(), user_id),
+			)
 
 
 __all__ = [

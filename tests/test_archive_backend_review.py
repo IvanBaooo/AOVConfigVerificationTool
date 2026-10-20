@@ -218,17 +218,17 @@ class ArchiveReviewConfirmApiTests(unittest.TestCase):
 		self.assertNotIn("Idempotency-Replayed", response.headers)
 		review = response.body["review"]
 		self.assertEqual(review["review_status"], "confirmed")
-		self.assertEqual(review["reviewed_by"], "admin")
+		self.assertEqual(review["reviewed_by"], "legacy-token")
 		self.assertTrue(review["reviewed_at"])
 		self.assertEqual(review["note"], "人工确认无误")
 
 		audit = self.repository.list_archive_audit(action="review_confirm")
 		self.assertEqual(audit["total"], 1)
-		self.assertEqual(audit["items"][0]["actor"], "admin")
+		self.assertEqual(audit["items"][0]["actor"], "legacy-token")
 		self.assertEqual(audit["items"][0]["reason"], "人工确认无误")
 		management = self.repository.get_archive_management(payload["package_id"])
 		self.assertEqual(management["review_status"], "confirmed")
-		self.assertEqual(management["reviewed_by"], "admin")
+		self.assertEqual(management["reviewed_by"], "legacy-token")
 		self.assertEqual(management["review_note"], "人工确认无误")
 
 	def test_repeat_confirm_is_replayed_without_new_audit(self) -> None:
@@ -240,7 +240,7 @@ class ArchiveReviewConfirmApiTests(unittest.TestCase):
 		self.assertEqual(response.status, 200)
 		self.assertEqual(response.body["result"], "replayed")
 		self.assertEqual(response.headers["Idempotency-Replayed"], "true")
-		self.assertEqual(response.body["review"]["reviewed_by"], "admin")
+		self.assertEqual(response.body["review"]["reviewed_by"], "legacy-token")
 		self.assertEqual(self.repository.list_archive_audit(action="review_confirm")["total"], 1)
 		management = self.repository.get_archive_management(payload["package_id"])
 		self.assertEqual(management["review_note"], "首次确认")

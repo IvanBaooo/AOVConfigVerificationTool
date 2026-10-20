@@ -171,17 +171,13 @@ def _handler_class(
 			body = b""
 			response: ApiResponse | None = None
 			admin_request = False
-			public_api_request = False
+			login_request = False
 			try:
 
 				try:
 					path = urlsplit(self.path).path
 					admin_request = self.command == "GET" and is_admin_route(path)
-					public_api_request = self.command == "GET" and (
-						path == "/api/v1/validation-rules/latest"
-						or path == "/api/v1/validation-rule-sets"
-						or path.startswith("/api/v1/validation-rule-sets/")
-					)
+					login_request = self.command == "POST" and path == "/api/v1/auth/google"
 				except ValueError:
 					self.close_connection = True
 					response = self._error_response(
@@ -190,8 +186,10 @@ def _handler_class(
 						"The request target is invalid.",
 					)
 
+				restrict_to_loopback = getattr(application, "auth_mode", None) != "google"
 				if (
 					response is None
+					and restrict_to_loopback
 					and self.command == "POST"
 					and path == "/api/v1/validation-rule-sets"
 					and not _is_loopback_address(str(self.client_address[0]))
@@ -204,6 +202,7 @@ def _handler_class(
 					)
 				if (
 					response is None
+					and restrict_to_loopback
 					and path.startswith("/api/v1/admin/")
 					and not _is_loopback_address(str(self.client_address[0]))
 				):
@@ -213,7 +212,7 @@ def _handler_class(
 						"admin_local_only",
 						"Archive management is restricted to the local machine.",
 					)
-				if response is None and path != "/health" and not admin_request and not public_api_request:
+				if response is None and path != "/health" and not admin_request and not login_request:
 					authorization_checker = getattr(application, "is_authorized", None)
 					if callable(authorization_checker) and not authorization_checker(request_headers):
 						self.close_connection = True
@@ -378,9 +377,10 @@ def _handler_class(
 				self.send_header("Referrer-Policy", "no-referrer")
 				self.send_header(
 					"Content-Security-Policy",
-					"default-src 'self'; script-src 'self'; style-src 'self'; "
-					"connect-src 'self'; img-src 'self' data:; object-src 'none'; "
-					"base-uri 'none'; frame-ancestors 'none'",
+					"default-src 'self'; script-src 'self' https://accounts.google.com; "
+					"style-src 'self'; connect-src 'self' https://accounts.google.com; "
+					"img-src 'self' data:; frame-src https://accounts.google.com; "
+					"object-src 'none'; base-uri 'none'; frame-ancestors 'none'",
 				)
 				for key, value in response.headers.items():
 					self.send_header(key, value)
@@ -460,17 +460,42 @@ def _parser() -> argparse.ArgumentParser:
 def main() -> int:
 	args = _parser().parse_args()
 	access_token: str | None = os.environ.get("AOV_BACKEND_TOKEN", "")
+	google_client_id = os.environ.get("GOOGLE_CLIENT_ID", "").strip()
+	loopback_host = args.host in {"127.0.0.1", "localhost", "::1"}
 	if args.no_auth:
-		if args.host not in {"127.0.0.1", "localhost", "::1"}:
+		if not loopback_host:
 			raise SystemExit("--no-auth is only allowed with a loopback host.")
+		auth_mode = "none"
 		access_token = None
-	elif not access_token:
-		raise SystemExit("AOV_BACKEND_TOKEN is required unless --no-auth is used.")
+	else:
+		auth_mode = os.environ.get("AOV_AUTH_MODE", "").strip().lower()
+		if not auth_mode:
+			auth_mode = "google" if google_client_id else "legacy-token"
+		if auth_mode == "none":
+			if not loopback_host:
+				raise SystemExit("AOV_AUTH_MODE=none is only allowed with a loopback host.")
+			access_token = None
+		elif auth_mode == "legacy-token":
+			if not access_token:
+				raise SystemExit("AOV_BACKEND_TOKEN is required when AOV_AUTH_MODE=legacy-token.")
+		elif auth_mode == "google":
+			if not google_client_id:
+				raise SystemExit("GOOGLE_CLIENT_ID is required when AOV_AUTH_MODE=google.")
+		else:
+			raise SystemExit(f"Unsupported AOV_AUTH_MODE: {auth_mode}")
+	google_verifier = None
+	if auth_mode == "google":
+		from .auth import GoogleIdTokenVerifier
+
+		google_verifier = GoogleIdTokenVerifier(google_client_id)
 	logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 	application = ArchiveApplication(
 		repository=ArchiveRepository(args.db),
 		validator=ArchivePayloadValidator(),
 		access_token=access_token,
+		auth_mode=auth_mode,
+		google_verifier=google_verifier,
+		secure_cookies=os.environ.get("AOV_SECURE_COOKIES", "") == "1",
 	)
 	server = create_http_server(
 		application,

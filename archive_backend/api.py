@@ -18,6 +18,20 @@ from rules.sets import (
 	validate_rule_set,
 )
 
+from .auth import (
+	AUTH_MODE_GOOGLE,
+	AUTH_MODE_LEGACY_TOKEN,
+	AUTH_MODE_NONE,
+	SESSION_COOKIE_NAME,
+	SESSION_TTL,
+	Identity,
+	hash_secret,
+	new_api_token,
+	new_session_id,
+	parse_cookies,
+	resolve_identity,
+	session_expiry,
+)
 from .repository import ArchiveConflict, ArchiveRepository
 from .schema_validation import ArchivePayloadError, ArchivePayloadValidator
 
@@ -39,6 +53,7 @@ ALLOWED_LIST_QUERY = frozenset(
 	}
 )
 DATE_FILTER_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+EMAIL_PATTERN = re.compile(r"^[^@\s]{1,128}@[^@\s]{1,190}\.[^@\s]+$")
 
 
 def _parse_date_filter(value: str) -> str | None:
@@ -74,12 +89,25 @@ class ArchiveApplication:
 		repository: ArchiveRepository,
 		validator: ArchivePayloadValidator,
 		access_token: str | None,
+		auth_mode: str | None = None,
+		google_verifier: object | None = None,
+		secure_cookies: bool = False,
 	) -> None:
 		if access_token is not None and (not isinstance(access_token, str) or not access_token):
 			raise ValueError("The backend access token must be non-empty when enabled.")
+		if auth_mode is None:
+			auth_mode = AUTH_MODE_NONE if access_token is None else AUTH_MODE_LEGACY_TOKEN
+		if auth_mode not in {AUTH_MODE_NONE, AUTH_MODE_LEGACY_TOKEN, AUTH_MODE_GOOGLE}:
+			raise ValueError(f"Unsupported auth mode: {auth_mode}")
+		if auth_mode == AUTH_MODE_GOOGLE and google_verifier is None:
+			raise ValueError("Google auth mode requires a Google ID token verifier.")
 		self.repository = repository
 		self.validator = validator
-		self._authorization = None if access_token is None else f"Bearer {access_token}"
+		self.auth_mode = auth_mode
+		self.google_verifier = google_verifier
+		self.secure_cookies = secure_cookies
+		self._legacy_token = access_token if auth_mode == AUTH_MODE_LEGACY_TOKEN else None
+		self._auth_required = auth_mode != AUTH_MODE_NONE
 
 	def handle(
 		self,
@@ -106,9 +134,54 @@ class ArchiveApplication:
 					"status": "ok" if healthy else "unavailable",
 					"service": "aov-archive-backend",
 					"contract_version": ARCHIVE_CONTRACT_VERSION,
-					"auth_required": self._authorization is not None,
+					"auth_required": self._auth_required,
+					"auth_mode": self.auth_mode,
 				},
 			)
+
+		if path == "/api/v1/auth/google" and method == "POST":
+			return self._google_login(body)
+
+		identity = resolve_identity(
+			self.repository,
+			self.auth_mode,
+			self._legacy_token,
+			normalized_headers,
+		)
+		if identity is None:
+			return _error(401, "unauthorized", "Authentication is required.")
+
+		if path == "/api/v1/auth/me":
+			if method != "GET":
+				return _error(405, "method_not_allowed", "Only GET is allowed.")
+			return ApiResponse(200, {
+				"user": {
+					"email": identity.email,
+					"display_name": identity.display_name,
+					"role": identity.role,
+				},
+				"auth_mode": self.auth_mode,
+			})
+		if path == "/api/v1/auth/logout":
+			if method != "POST":
+				return _error(405, "method_not_allowed", "Only POST is allowed.")
+			session_id = parse_cookies(normalized_headers.get("cookie")).get(SESSION_COOKIE_NAME)
+			if session_id:
+				self.repository.delete_session(hash_secret(session_id))
+			return ApiResponse(
+				200,
+				{"result": "logged_out"},
+				{"Set-Cookie": self._session_cookie("", max_age=0)},
+			)
+		if path == "/api/v1/tokens" or path.startswith("/api/v1/tokens/"):
+			return self._manage_tokens(method, path, identity, body)
+		if path == "/api/v1/admin/users" or path.startswith("/api/v1/admin/users/"):
+			return self._manage_users(method, path, identity, body)
+
+		if path.startswith("/api/v1/admin/") or (method == "POST" and path == "/api/v1/validation-rule-sets"):
+			denied = self._require_admin(identity)
+			if denied is not None:
+				return denied
 
 		if method == "GET" and path == "/api/v1/validation-rules/latest":
 			return self._latest_validation_rules(parsed.query)
@@ -124,8 +197,6 @@ class ArchiveApplication:
 		rule_detail_prefix = "/api/v1/validation-rule-sets/"
 		if method == "GET" and path.startswith(rule_detail_prefix):
 			return self._get_validation_rule_set(path[len(rule_detail_prefix) :])
-		if not self._authorized(normalized_headers.get("authorization", "")):
-			return _error(401, "unauthorized", "A valid bearer token is required.")
 
 		if path == "/api/v1/dashboard-summary":
 			if method != "GET":
@@ -164,7 +235,7 @@ class ArchiveApplication:
 
 		admin_prefix = "/api/v1/admin/package-archives/"
 		if path.startswith(admin_prefix):
-			return self._manage_archive(method, path[len(admin_prefix) :], normalized_headers, body)
+			return self._manage_archive(method, path[len(admin_prefix) :], normalized_headers, body, actor=identity.email)
 		baseline_admin_prefix = "/api/v1/admin/release-baselines/"
 		if path.startswith(baseline_admin_prefix):
 			return self._set_release_baseline(
@@ -172,6 +243,7 @@ class ArchiveApplication:
 				path[len(baseline_admin_prefix) :],
 				normalized_headers,
 				body,
+				actor=identity.email,
 			)
 		if path == "/api/v1/admin/archive-audit":
 			if method != "GET":
@@ -195,12 +267,172 @@ class ArchiveApplication:
 
 	def is_authorized(self, headers: Mapping[str, str]) -> bool:
 		normalized_headers = _normalized_headers(headers)
-		return self._authorized(normalized_headers.get("authorization", ""))
+		return resolve_identity(
+			self.repository,
+			self.auth_mode,
+			self._legacy_token,
+			normalized_headers,
+		) is not None
 
-	def _authorized(self, authorization: str) -> bool:
-		if self._authorization is None:
-			return True
-		return hmac.compare_digest(authorization.encode("utf-8"), self._authorization.encode("utf-8"))
+	@staticmethod
+	def _require_admin(identity: Identity) -> ApiResponse | None:
+		if not identity.is_admin:
+			return _error(403, "forbidden", "Administrator role is required.")
+		return None
+
+	def _session_cookie(self, session_id: str, *, max_age: int | None = None) -> str:
+		if max_age is None:
+			max_age = int(SESSION_TTL.total_seconds())
+		parts = [
+			f"{SESSION_COOKIE_NAME}={session_id}",
+			"Path=/",
+			"HttpOnly",
+			"SameSite=Lax",
+			f"Max-Age={max_age}",
+		]
+		if self.secure_cookies:
+			parts.append("Secure")
+		return "; ".join(parts)
+
+	@staticmethod
+	def _public_user(user: Mapping[str, object]) -> dict[str, object]:
+		return {
+			"id": user["id"],
+			"email": user["email"],
+			"display_name": user.get("display_name", ""),
+			"role": user["role"],
+		}
+
+	def _google_login(self, body: bytes) -> ApiResponse:
+		if self.auth_mode != AUTH_MODE_GOOGLE or self.google_verifier is None:
+			return _error(404, "route_not_found", "The API route was not found.")
+		try:
+			payload = json.loads(body.decode("utf-8"))
+		except (UnicodeDecodeError, json.JSONDecodeError):
+			return _error(400, "invalid_json", "The request body is not valid UTF-8 JSON.")
+		credential = payload.get("credential") if isinstance(payload, dict) else None
+		if not isinstance(credential, str) or not credential:
+			return _error(422, "invalid_login_request", "A Google credential is required.")
+		try:
+			profile = self.google_verifier.verify(credential)
+		except Exception:
+			return _error(401, "invalid_google_token", "The Google credential could not be verified.")
+		email = profile["email"].strip().lower()
+		user = self.repository.get_user_by_email(email)
+		if user is None:
+			if self.repository.count_users() == 0:
+				user = self.repository.create_user(email, profile.get("display_name", ""), role="admin")
+			else:
+				return _error(
+					403,
+					"not_in_whitelist",
+					"This Google account is not authorized. Ask an administrator to add your email.",
+				)
+		if user["status"] != "active":
+			return _error(403, "account_disabled", "This account has been disabled.")
+		session_id = new_session_id()
+		self.repository.create_session(hash_secret(session_id), int(user["id"]), session_expiry())
+		self.repository.touch_user_login(int(user["id"]))
+		return ApiResponse(
+			200,
+			{"user": self._public_user(user)},
+			{"Set-Cookie": self._session_cookie(session_id)},
+		)
+
+	def _manage_tokens(self, method: str, path: str, identity: Identity, body: bytes) -> ApiResponse:
+		if identity.user_id is None:
+			return _error(400, "tokens_unsupported", "API tokens require a signed-in account.")
+		if path == "/api/v1/tokens":
+			if method == "GET":
+				return ApiResponse(200, {"items": self.repository.list_api_tokens(identity.user_id)})
+			if method != "POST":
+				return _error(405, "method_not_allowed", "Only GET and POST are allowed.")
+			try:
+				payload = json.loads(body.decode("utf-8")) if body else {}
+			except (UnicodeDecodeError, json.JSONDecodeError):
+				return _error(400, "invalid_json", "The request body is not valid UTF-8 JSON.")
+			if not isinstance(payload, dict):
+				return _error(422, "invalid_token_request", "The request body must be an object.")
+			name = payload.get("name", "")
+			if not isinstance(name, str) or len(name.strip()) > 100:
+				return _error(422, "invalid_token_request", "name must be a string of at most 100 characters.")
+			plaintext = new_api_token()
+			item = self.repository.create_api_token(identity.user_id, name.strip(), hash_secret(plaintext))
+			return ApiResponse(201, {"token": plaintext, "item": item})
+		suffix = path[len("/api/v1/tokens/"):]
+		parts = suffix.split("/")
+		if len(parts) != 2 or parts[1] != "revoke" or not parts[0].isdigit():
+			return _error(404, "route_not_found", "The API route was not found.")
+		if method != "POST":
+			return _error(405, "method_not_allowed", "Only POST is allowed.")
+		if not self.repository.revoke_api_token(int(parts[0]), identity.user_id):
+			return _error(404, "token_not_found", "The API token was not found.")
+		return ApiResponse(200, {"result": "revoked"})
+
+	def _manage_users(self, method: str, path: str, identity: Identity, body: bytes) -> ApiResponse:
+		denied = self._require_admin(identity)
+		if denied is not None:
+			return denied
+		if path == "/api/v1/admin/users":
+			if method == "GET":
+				return ApiResponse(200, {"items": self.repository.list_users()})
+			if method != "POST":
+				return _error(405, "method_not_allowed", "Only GET and POST are allowed.")
+			try:
+				payload = json.loads(body.decode("utf-8"))
+			except (UnicodeDecodeError, json.JSONDecodeError):
+				return _error(400, "invalid_json", "The request body is not valid UTF-8 JSON.")
+			if not isinstance(payload, dict):
+				return _error(422, "invalid_user_request", "The request body must be an object.")
+			email = payload.get("email")
+			role = payload.get("role", "member")
+			display_name = payload.get("display_name", "")
+			if not isinstance(email, str) or not EMAIL_PATTERN.fullmatch(email.strip()):
+				return _error(422, "invalid_user_request", "A valid email address is required.")
+			if role not in {"admin", "member"}:
+				return _error(422, "invalid_user_request", "role must be admin or member.")
+			if not isinstance(display_name, str) or len(display_name.strip()) > 100:
+				return _error(422, "invalid_user_request", "display_name must be a string of at most 100 characters.")
+			email = email.strip().lower()
+			if self.repository.get_user_by_email(email) is not None:
+				return _error(409, "user_exists", "The user already exists.")
+			user = self.repository.create_user(email, display_name.strip(), role)
+			return ApiResponse(201, {"user": user})
+		suffix = path[len("/api/v1/admin/users/"):]
+		if not suffix.isdigit():
+			return _error(404, "route_not_found", "The API route was not found.")
+		target_id = int(suffix)
+		target = self.repository.get_user_by_id(target_id)
+		if target is None:
+			return _error(404, "user_not_found", "The user was not found.")
+		if method == "PATCH":
+			try:
+				payload = json.loads(body.decode("utf-8"))
+			except (UnicodeDecodeError, json.JSONDecodeError):
+				return _error(400, "invalid_json", "The request body is not valid UTF-8 JSON.")
+			if not isinstance(payload, dict):
+				return _error(422, "invalid_user_request", "The request body must be an object.")
+			role = payload.get("role")
+			status = payload.get("status")
+			if role is not None and role not in {"admin", "member"}:
+				return _error(422, "invalid_user_request", "role must be admin or member.")
+			if status is not None and status not in {"active", "disabled"}:
+				return _error(422, "invalid_user_request", "status must be active or disabled.")
+			if role is None and status is None:
+				return _error(422, "invalid_user_request", "Nothing to update.")
+			if identity.user_id == target_id and (role == "member" or status == "disabled"):
+				return _error(400, "cannot_modify_self", "You cannot demote or disable your own account.")
+			updated = self.repository.update_user(target_id, role=role, status=status)
+			if status == "disabled":
+				self.repository.disable_user_access(target_id)
+			return ApiResponse(200, {"user": updated})
+		if method == "DELETE":
+			if identity.user_id == target_id:
+				return _error(400, "cannot_modify_self", "You cannot remove your own account.")
+			self.repository.update_user(target_id, status="disabled")
+			self.repository.disable_user_access(target_id)
+			return ApiResponse(200, {"result": "disabled"})
+		return _error(405, "method_not_allowed", "Only PATCH and DELETE are allowed.")
 
 	def _list_validation_rule_sets(self, query: str) -> ApiResponse:
 		parameters = parse_qs(query, keep_blank_values=True)
@@ -432,6 +664,8 @@ class ArchiveApplication:
 		suffix: str,
 		headers: Mapping[str, str],
 		body: bytes,
+		*,
+		actor: str,
 	) -> ApiResponse:
 		parts = suffix.split("/")
 		if len(parts) != 2 or parts[1] not in {"soft-delete", "restore", "review-confirm"}:
@@ -461,7 +695,7 @@ class ArchiveApplication:
 			try:
 				review = self.repository.confirm_archive_review(
 					package_id,
-					actor="admin",
+					actor=actor,
 					note=note.strip() if isinstance(note, str) and note.strip() else None,
 				)
 			except ArchiveConflict as conflict:
@@ -496,7 +730,7 @@ class ArchiveApplication:
 			if parts[1] == "soft-delete":
 				event = self.repository.soft_delete_archive(
 					package_id,
-					actor="admin",
+					actor=actor,
 					reason=reason.strip(),
 					replacement_package_id=replacement_package_id,
 				)
@@ -504,7 +738,7 @@ class ArchiveApplication:
 			else:
 				event = self.repository.restore_archive(
 					package_id,
-					actor="admin",
+					actor=actor,
 					reason=reason.strip(),
 				)
 				result = "restored"
@@ -519,6 +753,8 @@ class ArchiveApplication:
 		region_suffix: str,
 		headers: Mapping[str, str],
 		body: bytes,
+		*,
+		actor: str,
 	) -> ApiResponse:
 		if method != "POST":
 			return _error(405, "method_not_allowed", "Only POST is allowed.")
@@ -550,7 +786,7 @@ class ArchiveApplication:
 		try:
 			baseline = self.repository.set_release_baseline(
 				package_id,
-				actor="admin",
+				actor=actor,
 				reason=reason.strip(),
 			)
 		except ArchiveConflict as conflict:

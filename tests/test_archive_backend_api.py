@@ -249,7 +249,7 @@ class ArchiveApplicationTests(unittest.TestCase):
 		detail = self.request("GET", f"/api/v1/package-archives/{payload['package_id']}")
 
 		self.assertEqual(deleted.status, 200)
-		self.assertEqual(deleted.body["event"]["actor"], "admin")
+		self.assertEqual(deleted.body["event"]["actor"], "legacy-token")
 		self.assertEqual(active_list.body["total"], 0)
 		self.assertEqual(deleted_list.body["total"], 1)
 		self.assertEqual(detail.body["management"]["record_state"], "deleted")

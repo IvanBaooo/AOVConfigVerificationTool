@@ -35,19 +35,18 @@ class ValidationRulesManagementTests(unittest.TestCase):
 			json.dumps(payload, ensure_ascii=False).encode("utf-8"),
 		)
 
-	def test_history_and_detail_are_public_read_only_routes(self) -> None:
+	def _get(self, path: str, *, authenticated: bool = True):
+		headers = {"Authorization": "Bearer management-token"} if authenticated else {}
+		return self.application.handle("GET", path, headers)
+
+	def test_history_and_detail_require_authentication(self) -> None:
 		self.assertEqual(201, self.publish(sample_rule_set()).status)
 
-		history = self.application.handle(
-			"GET",
-			"/api/v1/validation-rule-sets?limit=20&offset=0",
-			{},
-		)
-		detail = self.application.handle(
-			"GET",
-			"/api/v1/validation-rule-sets/aov-main/2026.07.27.1",
-			{},
-		)
+		anonymous = self.application.handle("GET", "/api/v1/validation-rule-sets", {})
+		self.assertEqual(401, anonymous.status)
+
+		history = self._get("/api/v1/validation-rule-sets?limit=20&offset=0")
+		detail = self._get("/api/v1/validation-rule-sets/aov-main/2026.07.27.1")
 
 		self.assertEqual(200, history.status)
 		self.assertEqual(1, history.body["total"])
@@ -65,7 +64,7 @@ class ValidationRulesManagementTests(unittest.TestCase):
 		self.publish(first)
 		self.publish(second)
 
-		history = self.application.handle("GET", "/api/v1/validation-rule-sets", {})
+		history = self._get("/api/v1/validation-rule-sets")
 
 		self.assertEqual(
 			["2026.07.28.1", "2026.07.27.1"],
@@ -73,16 +72,8 @@ class ValidationRulesManagementTests(unittest.TestCase):
 		)
 
 	def test_invalid_history_query_and_detail_return_client_errors(self) -> None:
-		bad_query = self.application.handle(
-			"GET",
-			"/api/v1/validation-rule-sets?limit=0",
-			{},
-		)
-		missing = self.application.handle(
-			"GET",
-			"/api/v1/validation-rule-sets/aov-main/missing",
-			{},
-		)
+		bad_query = self._get("/api/v1/validation-rule-sets?limit=0")
+		missing = self._get("/api/v1/validation-rule-sets/aov-main/missing")
 
 		self.assertEqual(400, bad_query.status)
 		self.assertEqual(404, missing.status)
