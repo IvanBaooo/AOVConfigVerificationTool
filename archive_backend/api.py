@@ -20,17 +20,23 @@ from rules.sets import (
 
 from .auth import (
 	AUTH_MODE_GOOGLE,
+	AUTH_MODE_IAM,
 	AUTH_MODE_LEGACY_TOKEN,
 	AUTH_MODE_NONE,
+	IAM_STATE_COOKIE_NAME,
 	SESSION_COOKIE_NAME,
 	SESSION_TTL,
 	Identity,
+	build_iam_authorize_url,
+	build_iam_signout_url,
 	hash_secret,
 	new_api_token,
+	new_iam_state,
 	new_session_id,
 	parse_cookies,
 	resolve_identity,
 	session_expiry,
+	verify_iam_state,
 )
 from .repository import ArchiveConflict, ArchiveRepository
 from .schema_validation import ArchivePayloadError, ArchivePayloadValidator
@@ -91,20 +97,26 @@ class ArchiveApplication:
 		access_token: str | None,
 		auth_mode: str | None = None,
 		google_verifier: object | None = None,
+		iam_config: object | None = None,
+		iam_client: object | None = None,
 		secure_cookies: bool = False,
 	) -> None:
 		if access_token is not None and (not isinstance(access_token, str) or not access_token):
 			raise ValueError("The backend access token must be non-empty when enabled.")
 		if auth_mode is None:
 			auth_mode = AUTH_MODE_NONE if access_token is None else AUTH_MODE_LEGACY_TOKEN
-		if auth_mode not in {AUTH_MODE_NONE, AUTH_MODE_LEGACY_TOKEN, AUTH_MODE_GOOGLE}:
+		if auth_mode not in {AUTH_MODE_NONE, AUTH_MODE_LEGACY_TOKEN, AUTH_MODE_GOOGLE, AUTH_MODE_IAM}:
 			raise ValueError(f"Unsupported auth mode: {auth_mode}")
 		if auth_mode == AUTH_MODE_GOOGLE and google_verifier is None:
 			raise ValueError("Google auth mode requires a Google ID token verifier.")
+		if auth_mode == AUTH_MODE_IAM and (iam_config is None or iam_client is None):
+			raise ValueError("IAM auth mode requires an IAM config and client.")
 		self.repository = repository
 		self.validator = validator
 		self.auth_mode = auth_mode
 		self.google_verifier = google_verifier
+		self.iam_config = iam_config
+		self.iam_client = iam_client
 		self.secure_cookies = secure_cookies
 		self._legacy_token = access_token if auth_mode == AUTH_MODE_LEGACY_TOKEN else None
 		self._auth_required = auth_mode != AUTH_MODE_NONE
@@ -141,11 +153,20 @@ class ArchiveApplication:
 						if self.auth_mode == AUTH_MODE_GOOGLE
 						else ""
 					),
+					"iam_signout_url": (
+						build_iam_signout_url(self.iam_config)
+						if self.auth_mode == AUTH_MODE_IAM
+						else ""
+					),
 				},
 			)
 
 		if path == "/api/v1/auth/google" and method == "POST":
 			return self._google_login(body)
+		if path == "/auth/iam/login" and method == "GET":
+			return self._iam_login_redirect()
+		if path == "/auth/callback" and method == "GET":
+			return self._iam_callback(parsed.query, normalized_headers)
 
 		identity = resolve_identity(
 			self.repository,
@@ -308,6 +329,21 @@ class ArchiveApplication:
 			"role": user["role"],
 		}
 
+	def _complete_login(self, email: str, display_name: str) -> tuple[Mapping[str, object] | None, ApiResponse | None]:
+		user = self.repository.get_user_by_email(email)
+		if user is None:
+			if self.repository.count_users() == 0:
+				user = self.repository.create_user(email, display_name, role="admin")
+			else:
+				return None, _error(
+					403,
+					"not_in_whitelist",
+					"This account is not authorized. Ask an administrator to add your email.",
+				)
+		if user["status"] != "active":
+			return None, _error(403, "account_disabled", "This account has been disabled.")
+		return user, None
+
 	def _google_login(self, body: bytes) -> ApiResponse:
 		if self.auth_mode != AUTH_MODE_GOOGLE or self.google_verifier is None:
 			return _error(404, "route_not_found", "The API route was not found.")
@@ -323,18 +359,9 @@ class ArchiveApplication:
 		except Exception:
 			return _error(401, "invalid_google_token", "The Google credential could not be verified.")
 		email = profile["email"].strip().lower()
-		user = self.repository.get_user_by_email(email)
-		if user is None:
-			if self.repository.count_users() == 0:
-				user = self.repository.create_user(email, profile.get("display_name", ""), role="admin")
-			else:
-				return _error(
-					403,
-					"not_in_whitelist",
-					"This Google account is not authorized. Ask an administrator to add your email.",
-				)
-		if user["status"] != "active":
-			return _error(403, "account_disabled", "This account has been disabled.")
+		user, denied = self._complete_login(email, profile.get("display_name", ""))
+		if denied is not None:
+			return denied
 		session_id = new_session_id()
 		self.repository.create_session(hash_secret(session_id), int(user["id"]), session_expiry())
 		self.repository.touch_user_login(int(user["id"]))
@@ -342,6 +369,73 @@ class ArchiveApplication:
 			200,
 			{"user": self._public_user(user)},
 			{"Set-Cookie": self._session_cookie(session_id)},
+		)
+
+	def _iam_state_cookie(self, state: str, *, max_age: int | None = None) -> str:
+		if max_age is None:
+			max_age = 600
+		parts = [
+			f"{IAM_STATE_COOKIE_NAME}={state}",
+			"Path=/",
+			"HttpOnly",
+			"SameSite=Lax",
+			f"Max-Age={max_age}",
+		]
+		if self.secure_cookies:
+			parts.append("Secure")
+		return "; ".join(parts)
+
+	@staticmethod
+	def _iam_error_redirect(code: str) -> ApiResponse:
+		return ApiResponse(302, {}, {"Location": f"/admin/?login_error={code}"})
+
+	def _iam_login_redirect(self) -> ApiResponse:
+		if self.auth_mode != AUTH_MODE_IAM or self.iam_config is None:
+			return _error(404, "route_not_found", "The API route was not found.")
+		state = new_iam_state(self.iam_config.client_secret)
+		return ApiResponse(
+			302,
+			{},
+			{
+				"Location": build_iam_authorize_url(self.iam_config, state),
+				"Set-Cookie": self._iam_state_cookie(state),
+			},
+		)
+
+	def _iam_callback(self, query: str, headers: Mapping[str, str]) -> ApiResponse:
+		if self.auth_mode != AUTH_MODE_IAM or self.iam_config is None or self.iam_client is None:
+			return _error(404, "route_not_found", "The API route was not found.")
+		parameters = parse_qs(query)
+		code = parameters.get("code", [""])[0]
+		state = parameters.get("state", [""])[0]
+		cookie_state = parse_cookies(headers.get("cookie")).get(IAM_STATE_COOKIE_NAME, "")
+		clear_state = self._iam_state_cookie("", max_age=0)
+		if not code or not state or state != cookie_state or not verify_iam_state(state, self.iam_config.client_secret):
+			response = self._iam_error_redirect("invalid_state")
+			response.headers["Set-Cookie"] = clear_state
+			return response
+		try:
+			token = self.iam_client.exchange_code(code)
+			profile = self.iam_client.fetch_user(str(token["access_token"]))
+		except Exception:
+			response = self._iam_error_redirect("iam_exchange_failed")
+			response.headers["Set-Cookie"] = clear_state
+			return response
+		user, denied = self._complete_login(profile["email"].strip().lower(), profile.get("display_name", ""))
+		if denied is not None:
+			response = self._iam_error_redirect(str(denied.body["error"]["code"]))
+			response.headers["Set-Cookie"] = clear_state
+			return response
+		session_id = new_session_id()
+		self.repository.create_session(hash_secret(session_id), int(user["id"]), session_expiry())
+		self.repository.touch_user_login(int(user["id"]))
+		return ApiResponse(
+			302,
+			{},
+			{
+				"Location": "/admin/",
+				"Set-Cookie": self._session_cookie(session_id),
+			},
 		)
 
 	def _manage_tokens(self, method: str, path: str, identity: Identity, body: bytes) -> ApiResponse:

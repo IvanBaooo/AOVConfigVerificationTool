@@ -25,6 +25,7 @@ const state = {
   authRequired: true,
   authMode: "",
   googleClientId: "",
+  iamSignoutUrl: "",
   user: null,
   offset: 0,
   total: 0,
@@ -52,6 +53,7 @@ const elements = {
   loginView: document.querySelector("#login-view"),
   loginError: document.querySelector("#login-error"),
   googleLoginButton: document.querySelector("#google-login-button"),
+  iamLoginButton: document.querySelector("#iam-login-button"),
   accountAvatar: document.querySelector("#account-avatar"),
   accountName: document.querySelector("#account-name"),
   accountRole: document.querySelector("#account-role"),
@@ -240,7 +242,7 @@ function applyUser(user) {
   elements.accountRole.textContent = user
     ? roleLabels[user.role] || String(user.role || "")
     : "开发态";
-  elements.logoutButton.classList.toggle("hidden", state.authMode !== "google");
+  elements.logoutButton.classList.toggle("hidden", state.authMode !== "google" && state.authMode !== "iam");
 }
 
 function setLoginError(message = "") {
@@ -248,9 +250,25 @@ function setLoginError(message = "") {
   elements.loginError.classList.toggle("hidden", !message);
 }
 
+const LOGIN_ERROR_MESSAGES = {
+  not_in_whitelist: "该公司账号未被授权，请联系管理员添加你的邮箱。",
+  account_disabled: "该账号已被停用，请联系管理员。",
+  invalid_state: "登录状态校验失败，请重新点击登录。",
+  iam_exchange_failed: "公司登录服务交换凭证失败，请稍后重试。",
+};
+
 function showLoginView() {
   elements.loginView.classList.remove("hidden");
   setLoginError("");
+  if (state.authMode === "iam") {
+    elements.googleLoginButton.classList.add("hidden");
+    elements.iamLoginButton.classList.remove("hidden");
+    document.querySelector("#login-subtitle").textContent = "配置发布归档 · 请使用公司账号登录";
+    return;
+  }
+  elements.iamLoginButton.classList.add("hidden");
+  elements.googleLoginButton.classList.remove("hidden");
+  document.querySelector("#login-subtitle").textContent = "配置发布归档 · 请使用授权的 Google 账号登录";
   const clientId = String(state.googleClientId || "");
   if (!clientId || clientId.includes("placeholder")) {
     setLoginError("后端尚未配置 Google Client ID，请完成部署配置后刷新页面。");
@@ -308,6 +326,10 @@ async function logout() {
   } catch (_error) {
     // 即使请求失败也回到登录页
   }
+  if (state.authMode === "iam" && state.iamSignoutUrl) {
+    window.location.href = state.iamSignoutUrl;
+    return;
+  }
   window.location.reload();
 }
 
@@ -347,7 +369,8 @@ async function checkHealth() {
     state.authRequired = health.auth_required !== false;
     state.authMode = String(health.auth_mode || "");
     state.googleClientId = String(health.google_client_id || "");
-    elements.connectionButton.classList.toggle("hidden", !state.authRequired || state.authMode === "google");
+    state.iamSignoutUrl = String(health.iam_signout_url || "");
+    elements.connectionButton.classList.toggle("hidden", !state.authRequired || state.authMode === "google" || state.authMode === "iam");
     setServiceState(health.status === "ok" ? "online" : "offline", health.status === "ok" ? "服务正常" : "服务异常");
     return true;
   } catch (_error) {
@@ -1668,13 +1691,20 @@ async function bootstrap() {
   const healthy = await checkHealth();
   if (!healthy) return;
   state.filters = readFilters();
-  if (state.authMode === "google") {
+  if (state.authMode === "google" || state.authMode === "iam") {
+    const loginError = new URLSearchParams(window.location.search).get("login_error");
+    if (loginError) {
+      window.history.replaceState(null, "", window.location.pathname);
+    }
     try {
       const me = await apiRequest("/api/v1/auth/me", { authenticated: false });
       applyUser(me.user);
       loadArchives();
     } catch (_error) {
       showLoginView();
+      if (loginError) {
+        setLoginError(LOGIN_ERROR_MESSAGES[loginError] || "登录失败，请重试。");
+      }
     }
     return;
   }

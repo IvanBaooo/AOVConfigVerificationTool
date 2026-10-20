@@ -2097,6 +2097,29 @@ dialog::backdrop {
   place-items: center;
 }
 
+.iam-login-button {
+  margin-top: 10px;
+  display: inline-grid;
+  place-items: center;
+  min-width: 220px;
+  min-height: 34px;
+  padding: 7px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #ffffff;
+  background: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  text-decoration: none;
+  box-shadow: var(--shadow-card);
+  transition: background-color .15s ease, border-color .15s ease;
+}
+
+.iam-login-button:hover {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+
 .login-error {
   color: var(--red, #dc2626);
   font-size: 12.5px;

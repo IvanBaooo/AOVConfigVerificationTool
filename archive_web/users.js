@@ -52,7 +52,7 @@ function setUsersNotice(message = "", kind = "") {
 async function userRequest(path, { method = "GET", body = null } = {}) {
   const headers = { Accept: "application/json" };
   if (body !== null) headers["Content-Type"] = "application/json";
-  if (typeof state !== "undefined" && state.authMode !== "google" && state.authRequired && state.token) {
+  if (typeof state !== "undefined" && state.authMode !== "google" && state.authMode !== "iam" && state.authRequired && state.token) {
     headers.Authorization = `Bearer ${state.token}`;
   }
   const response = await fetch(path, { method, headers, body: body === null ? undefined : JSON.stringify(body), cache: "no-store" });
@@ -145,7 +145,7 @@ async function loadTokens() {
     renderTokens();
   } catch (error) {
     if (error.code === "tokens_unsupported" || error.status === 400) {
-      userUi.tokensRows.innerHTML = '<tr><td colspan="4">API Token 仅在 Google 登录模式下可用</td></tr>';
+      userUi.tokensRows.innerHTML = '<tr><td colspan="4">API Token 仅在账号登录模式（Google / 公司账号）下可用</td></tr>';
       userUi.tokensCount.textContent = "0";
       userUi.tokenForm.classList.add("hidden");
     } else {

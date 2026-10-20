@@ -177,7 +177,9 @@ def _handler_class(
 				try:
 					path = urlsplit(self.path).path
 					admin_request = self.command == "GET" and is_admin_route(path)
-					login_request = self.command == "POST" and path == "/api/v1/auth/google"
+					login_request = (self.command == "POST" and path == "/api/v1/auth/google") or (
+						self.command == "GET" and path in {"/auth/iam/login", "/auth/callback"}
+					)
 				except ValueError:
 					self.close_connection = True
 					response = self._error_response(
@@ -186,7 +188,7 @@ def _handler_class(
 						"The request target is invalid.",
 					)
 
-				restrict_to_loopback = getattr(application, "auth_mode", None) != "google"
+				restrict_to_loopback = getattr(application, "auth_mode", None) not in {"google", "iam"}
 				if (
 					response is None
 					and restrict_to_loopback
@@ -482,6 +484,14 @@ def main() -> int:
 			if not google_client_id:
 				raise SystemExit("GOOGLE_CLIENT_ID is required when AOV_AUTH_MODE=google.")
 			access_token = None
+		elif auth_mode == "iam":
+			if not os.environ.get("IAM_CLIENT_ID", "").strip():
+				raise SystemExit("IAM_CLIENT_ID is required when AOV_AUTH_MODE=iam.")
+			if not os.environ.get("IAM_CLIENT_SECRET", "").strip():
+				raise SystemExit("IAM_CLIENT_SECRET is required when AOV_AUTH_MODE=iam.")
+			if not os.environ.get("IAM_REDIRECT_URI", "").strip():
+				raise SystemExit("IAM_REDIRECT_URI is required when AOV_AUTH_MODE=iam.")
+			access_token = None
 		else:
 			raise SystemExit(f"Unsupported AOV_AUTH_MODE: {auth_mode}")
 	google_verifier = None
@@ -489,6 +499,19 @@ def main() -> int:
 		from .auth import GoogleIdTokenVerifier
 
 		google_verifier = GoogleIdTokenVerifier(google_client_id)
+	iam_config = None
+	iam_client = None
+	if auth_mode == "iam":
+		from .auth import IAM_DEFAULT_BASE_URL, IamClient, IamConfig
+
+		iam_config = IamConfig(
+			client_id=os.environ["IAM_CLIENT_ID"].strip(),
+			client_secret=os.environ["IAM_CLIENT_SECRET"].strip(),
+			redirect_uri=os.environ["IAM_REDIRECT_URI"].strip(),
+			signout_redirect_uri=os.environ.get("IAM_SIGNOUT_REDIRECT_URI", "").strip() or "/admin/",
+			base_url=os.environ.get("IAM_BASE_URL", "").strip() or IAM_DEFAULT_BASE_URL,
+		)
+		iam_client = IamClient(iam_config)
 	logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 	application = ArchiveApplication(
 		repository=ArchiveRepository(args.db),
@@ -496,6 +519,8 @@ def main() -> int:
 		access_token=access_token,
 		auth_mode=auth_mode,
 		google_verifier=google_verifier,
+		iam_config=iam_config,
+		iam_client=iam_client,
 		secure_cookies=os.environ.get("AOV_SECURE_COOKIES", "") == "1",
 	)
 	server = create_http_server(
