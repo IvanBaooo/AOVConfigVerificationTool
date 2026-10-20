@@ -2184,7 +2184,9 @@ dialog::backdrop {
   font-size: 12.5px;
 }
 
-.users-add-form input { flex: 1; min-width: 0; max-width: 320px; }
+.users-add-form input { flex: 1 1 0; min-width: 0; max-width: 360px; width: auto; }
+
+.users-add-form select { width: auto; flex: none; }
 
 .users-table-wrap { overflow-x: auto; }
 
