@@ -84,9 +84,11 @@
   border-bottom: 1px solid var(--line);
 }
 
-.rules-panel-heading h2 {
+.rules-panel-heading h2,
+.rules-panel-heading h3 {
   font-size: 14px;
   font-weight: 700;
+  margin: 0;
 }
 
 .rules-panel-heading span {
