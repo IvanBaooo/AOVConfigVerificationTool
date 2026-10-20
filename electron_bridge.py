@@ -943,6 +943,14 @@ def _bridge_project_root() -> Path:
 
 
 def run_bridge() -> None:
+	# Windows + PyInstaller 下 stdout/stdin 默认跟随系统区域编码（GBK/cp1252），
+	# 中文会按 GBK 字节发出而被 Node 按 UTF-8 解码成乱码；这里强制 UTF-8，
+	# 不依赖 PYTHONUTF8 环境变量是否生效。
+	for stream, errors in ((sys.stdin, "strict"), (sys.stdout, "strict"), (sys.stderr, "replace")):
+		try:
+			stream.reconfigure(encoding="utf-8", errors=errors)
+		except (AttributeError, ValueError):
+			pass
 	service = ElectronBridgeService(_bridge_project_root())
 
 	def write(message: Mapping[str, object]) -> None:
