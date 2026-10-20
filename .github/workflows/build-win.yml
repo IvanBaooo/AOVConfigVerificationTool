@@ -1,0 +1,39 @@
+name: build-windows
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Build Python bridge exe
+        run: |
+          python -m pip install pyinstaller
+          python -m PyInstaller packaging/aov_bridge.spec --distpath dist-bridge -y
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+
+      - name: Install frontend dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build portable Windows exe
+        run: pnpm run dist:win
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AOVAutoPacker-win-x64
+          path: dist-electron/*.exe

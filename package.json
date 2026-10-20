@@ -7,9 +7,36 @@
   "scripts": {
     "start": "electron .",
     "check": "node --check electron/main.js && node --check electron/preload.js && node --check electron/renderer.js",
-    "test:python": "python -m unittest discover -s tests -p \"test_electron_bridge.py\""
+    "test:python": "python -m unittest discover -s tests -p \"test_electron_bridge.py\"",
+    "dist:win": "electron-builder --win portable"
   },
   "devDependencies": {
-    "electron": "^37.2.4"
+    "electron": "^37.2.4",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "net.ingarena.aovpacker",
+    "productName": "AOV AutoPacker",
+    "files": [
+      "electron/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "dist-bridge",
+        "to": "bridge",
+        "filter": ["aov-bridge.exe"]
+      }
+    ],
+    "win": {
+      "target": ["portable"],
+      "icon": "icon.ico"
+    },
+    "portable": {
+      "artifactName": "AOVAutoPacker-${version}-win-x64.exe"
+    },
+    "directories": {
+      "output": "dist-electron"
+    }
   }
 }

@@ -5,6 +5,32 @@ const readline = require("node:readline");
 
 const PROJECT_ROOT = path.resolve(__dirname, "..");
 
+function resolveBridgeLaunch() {
+  if (app.isPackaged) {
+    const home = app.getPath("userData");
+    const exeName = process.platform === "win32" ? "aov-bridge.exe" : "aov-bridge";
+    return {
+      command: path.join(process.resourcesPath, "bridge", exeName),
+      args: [],
+      cwd: home,
+      env: {
+        ...process.env,
+        PYTHONUTF8: "1",
+        AOV_PACKER_HOME: home,
+        AOV_AUTOPACKER_SETTINGS: path.join(home, "settings.json"),
+        AOV_VALIDATION_RULE_CACHE: path.join(home, "rules", "cached_rule_set.json"),
+      },
+    };
+  }
+  const python = process.env.AOV_PYTHON || "python";
+  return {
+    command: python,
+    args: [path.join(PROJECT_ROOT, "electron_bridge.py")],
+    cwd: PROJECT_ROOT,
+    env: { ...process.env, PYTHONUTF8: "1" },
+  };
+}
+
 class PythonBridge {
   constructor() {
     this.sequence = 0;
@@ -14,10 +40,10 @@ class PythonBridge {
 
   start() {
     if (this.process) return;
-    const python = process.env.AOV_PYTHON || "python";
-    this.process = spawn(python, [path.join(PROJECT_ROOT, "electron_bridge.py")], {
-      cwd: PROJECT_ROOT,
-      env: { ...process.env, PYTHONUTF8: "1" },
+    const launch = resolveBridgeLaunch();
+    this.process = spawn(launch.command, launch.args, {
+      cwd: launch.cwd,
+      env: launch.env,
       windowsHide: true,
       stdio: ["pipe", "pipe", "pipe"],
     });

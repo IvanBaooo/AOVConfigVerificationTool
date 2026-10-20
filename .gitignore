@@ -33,6 +33,8 @@ electron-smoke.png
 # Build and editor files
 build/
 dist/
+dist-bridge/
+dist-electron/
 .idea/
 .vscode/
 .DS_Store

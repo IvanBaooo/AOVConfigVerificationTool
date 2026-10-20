@@ -928,8 +928,17 @@ class ElectronBridgeService:
 		}
 
 
+def _bridge_project_root() -> Path:
+	override = os.environ.get("AOV_PACKER_HOME", "").strip()
+	if override:
+		return Path(override).expanduser()
+	if getattr(sys, "frozen", False):
+		return Path(sys.executable).resolve().parent
+	return Path(__file__).resolve().parent
+
+
 def run_bridge() -> None:
-	service = ElectronBridgeService()
+	service = ElectronBridgeService(_bridge_project_root())
 
 	def write(message: Mapping[str, object]) -> None:
 		sys.stdout.write(json.dumps(dict(message), ensure_ascii=False, separators=(",", ":")) + "\n")
