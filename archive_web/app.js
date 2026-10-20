@@ -23,6 +23,9 @@ function storeToken(token) {
 const state = {
   token: readStoredToken(),
   authRequired: true,
+  authMode: "",
+  googleClientId: "",
+  user: null,
   offset: 0,
   total: 0,
   items: [],
@@ -41,9 +44,18 @@ const elements = {
   dashboardNav: document.querySelector("#nav-dashboard"),
   archiveNav: document.querySelector("#nav-archives"),
   rulesNav: document.querySelector("#nav-rules"),
+  usersNav: document.querySelector("#nav-users"),
   dashboardView: document.querySelector("#dashboard-view"),
   archiveView: document.querySelector("#archive-view"),
   rulesView: document.querySelector("#rules-view"),
+  usersView: document.querySelector("#users-view"),
+  loginView: document.querySelector("#login-view"),
+  loginError: document.querySelector("#login-error"),
+  googleLoginButton: document.querySelector("#google-login-button"),
+  accountAvatar: document.querySelector("#account-avatar"),
+  accountName: document.querySelector("#account-name"),
+  accountRole: document.querySelector("#account-role"),
+  logoutButton: document.querySelector("#logout-button"),
   pageKicker: document.querySelector("#page-kicker"),
   pageTitle: document.querySelector("#page-title"),
   serviceState: document.querySelector("#service-state"),
@@ -219,6 +231,76 @@ function setServiceState(mode, label) {
   elements.serviceLabel.textContent = label;
 }
 
+function applyUser(user) {
+  state.user = user;
+  const email = String(user?.email || "");
+  elements.accountAvatar.textContent = (email || "A").slice(0, 1).toUpperCase();
+  elements.accountName.textContent = String(user?.display_name || "") || email || "admin";
+  const roleLabels = { admin: "管理员", member: "成员" };
+  elements.accountRole.textContent = user
+    ? roleLabels[user.role] || String(user.role || "")
+    : "开发态";
+  elements.logoutButton.classList.toggle("hidden", state.authMode !== "google");
+}
+
+function setLoginError(message = "") {
+  elements.loginError.textContent = message;
+  elements.loginError.classList.toggle("hidden", !message);
+}
+
+function showLoginView() {
+  elements.loginView.classList.remove("hidden");
+  setLoginError("");
+  if (typeof google === "undefined" || !google.accounts?.id) {
+    setLoginError("Google 登录组件加载失败，请检查网络后刷新页面。");
+    return;
+  }
+  google.accounts.id.initialize({
+    client_id: state.googleClientId,
+    callback: handleGoogleCredential,
+  });
+  elements.googleLoginButton.replaceChildren();
+  google.accounts.id.renderButton(elements.googleLoginButton, {
+    theme: "outline",
+    size: "large",
+    text: "signin_with",
+    locale: "zh-CN",
+    width: 280,
+  });
+}
+
+async function handleGoogleCredential(response) {
+  setLoginError("");
+  try {
+    const payload = await apiRequest("/api/v1/auth/google", {
+      authenticated: false,
+      method: "POST",
+      body: { credential: response.credential },
+    });
+    elements.loginView.classList.add("hidden");
+    applyUser(payload.user);
+    state.filters = readFilters();
+    loadArchives();
+  } catch (error) {
+    if (error.code === "not_in_whitelist") {
+      setLoginError("该 Google 账号未被授权，请联系管理员添加你的邮箱。");
+    } else if (error.code === "account_disabled") {
+      setLoginError("该账号已被停用，请联系管理员。");
+    } else {
+      setLoginError(error.message || "登录失败，请重试。");
+    }
+  }
+}
+
+async function logout() {
+  try {
+    await apiRequest("/api/v1/auth/logout", { authenticated: false, method: "POST" });
+  } catch (_error) {
+    // 即使请求失败也回到登录页
+  }
+  window.location.reload();
+}
+
 async function apiRequest(path, { authenticated = true, method = "GET", body = null } = {}) {
   const headers = { Accept: "application/json" };
   if (authenticated && state.authRequired && state.token) {
@@ -253,7 +335,9 @@ async function checkHealth() {
   try {
     const health = await apiRequest("/health", { authenticated: false });
     state.authRequired = health.auth_required !== false;
-    elements.connectionButton.classList.toggle("hidden", !state.authRequired);
+    state.authMode = String(health.auth_mode || "");
+    state.googleClientId = String(health.google_client_id || "");
+    elements.connectionButton.classList.toggle("hidden", !state.authRequired || state.authMode === "google");
     setServiceState(health.status === "ok" ? "online" : "offline", health.status === "ok" ? "服务正常" : "服务异常");
     return true;
   } catch (_error) {
@@ -667,12 +751,15 @@ function showDashboardView() {
   elements.dashboardView.classList.remove("hidden");
   elements.archiveView.classList.add("hidden");
   elements.rulesView.classList.add("hidden");
+  elements.usersView.classList.add("hidden");
   elements.dashboardNav.classList.add("active");
   elements.dashboardNav.setAttribute("aria-current", "page");
   elements.archiveNav.classList.remove("active");
   elements.archiveNav.removeAttribute("aria-current");
   elements.rulesNav.classList.remove("active");
   elements.rulesNav.removeAttribute("aria-current");
+  elements.usersNav.classList.remove("active");
+  elements.usersNav.removeAttribute("aria-current");
   elements.pageKicker.textContent = "发布状态总览";
   elements.pageTitle.textContent = "Dashboard";
   elements.refreshButton.classList.remove("hidden");
@@ -1259,6 +1346,7 @@ function openConnectionDialog() {
 }
 
 elements.dashboardNav.addEventListener("click", showDashboardView);
+elements.logoutButton.addEventListener("click", logout);
 
 function handleDashboardRow(event) {
   const row = event.target.closest("tr[data-package-id]");
@@ -1567,10 +1655,24 @@ document.addEventListener("keydown", (event) => {
 });
 
 async function bootstrap() {
-  await checkHealth();
+  const healthy = await checkHealth();
+  if (!healthy) return;
   state.filters = readFilters();
+  if (state.authMode === "google") {
+    try {
+      const me = await apiRequest("/api/v1/auth/me", { authenticated: false });
+      applyUser(me.user);
+      loadArchives();
+    } catch (_error) {
+      showLoginView();
+    }
+    return;
+  }
   if (!state.authRequired || state.token) {
     loadArchives();
+    apiRequest("/api/v1/auth/me")
+      .then((me) => applyUser(me.user))
+      .catch(() => {});
   } else {
     setTableState("需要后端访问凭据");
     openConnectionDialog();

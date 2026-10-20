@@ -6,6 +6,7 @@
   <title>AOV 配置归档</title>
   <link rel="stylesheet" href="/admin/styles.css">
   <link rel="stylesheet" href="/admin/rules.css">
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
   <div class="app-shell">
@@ -31,6 +32,10 @@
           <span class="nav-index" aria-hidden="true">03</span>
           <span>规则管理</span>
         </button>
+        <button class="nav-item" id="nav-users" type="button">
+          <span class="nav-index" aria-hidden="true">04</span>
+          <span>账号管理</span>
+        </button>
       </nav>
 
       <div class="sidebar-footer">
@@ -50,12 +55,13 @@
         </div>
         <div class="page-header-actions">
           <button class="button button-primary" id="refresh-button" type="button">刷新数据</button>
-          <div class="admin-account" aria-label="当前管理员账号">
-            <span class="admin-avatar" aria-hidden="true">A</span>
+          <div class="admin-account" aria-label="当前登录账号">
+            <span class="admin-avatar" aria-hidden="true" id="account-avatar">A</span>
             <span class="admin-identity">
-              <strong>admin</strong>
-              <span>管理员 · 开发态</span>
+              <strong id="account-name">admin</strong>
+              <span id="account-role">开发态</span>
             </span>
+            <button class="icon-button hidden" id="logout-button" type="button" aria-label="退出登录" title="退出登录">⏻</button>
           </div>
         </div>
       </header>
@@ -543,6 +549,79 @@
           </section>
         </section>
       </main>
+
+      <main class="hidden" id="users-view">
+        <section class="dashboard-section" aria-labelledby="users-heading">
+          <div class="dashboard-section-heading">
+            <div>
+              <p class="section-eyebrow">ACCOUNT</p>
+              <h2 id="users-heading">账号管理</h2>
+              <p>Google 邮箱登录授权与本地打包工具的 API Token</p>
+            </div>
+          </div>
+          <div class="rules-notice notice hidden" id="users-notice" role="status"></div>
+
+          <section class="users-panel" id="users-admin-panel" aria-labelledby="users-admin-title">
+            <div class="rules-panel-heading">
+              <h3 id="users-admin-title">授权用户</h3>
+              <span id="users-count">0</span>
+            </div>
+            <form class="users-add-form" id="user-add-form">
+              <input id="user-add-email" type="email" required placeholder="Google 邮箱地址" autocomplete="off">
+              <select id="user-add-role" aria-label="角色">
+                <option value="member">成员</option>
+                <option value="admin">管理员</option>
+              </select>
+              <button class="button button-primary" type="submit">添加授权</button>
+            </form>
+            <div class="users-table-wrap">
+              <table class="users-table">
+                <thead>
+                  <tr><th>邮箱</th><th>角色</th><th>状态</th><th>最近登录</th><th>操作</th></tr>
+                </thead>
+                <tbody id="users-rows"></tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="users-panel" id="tokens-panel" aria-labelledby="tokens-title">
+            <div class="rules-panel-heading">
+              <h3 id="tokens-title">我的 API Token</h3>
+              <span id="tokens-count">0</span>
+            </div>
+            <p class="users-hint">本地打包工具通过 API Token 上传归档。在下方生成后，粘贴到打包工具的「后端访问 Token」配置中即可长期使用，泄露时可随时吊销。</p>
+            <form class="users-add-form" id="token-create-form">
+              <input id="token-create-name" type="text" maxlength="100" placeholder="用途备注，例如：我的打包机" autocomplete="off">
+              <button class="button button-primary" type="submit">生成 Token</button>
+            </form>
+            <div class="token-plaintext hidden" id="token-plaintext-box">
+              <p>请立即复制，此 Token 只显示这一次：</p>
+              <div class="token-plaintext-row">
+                <code id="token-plaintext"></code>
+                <button class="button button-secondary" id="token-copy" type="button">复制</button>
+              </div>
+            </div>
+            <div class="users-table-wrap">
+              <table class="users-table">
+                <thead>
+                  <tr><th>备注</th><th>创建时间</th><th>最近使用</th><th>操作</th></tr>
+                </thead>
+                <tbody id="tokens-rows"></tbody>
+              </table>
+            </div>
+          </section>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <div class="login-view hidden" id="login-view">
+    <div class="login-card">
+      <div class="brand-mark" aria-hidden="true">A</div>
+      <h1>AOV Data Agent</h1>
+      <p>配置发布归档 · 请使用授权的 Google 账号登录</p>
+      <div class="login-button-slot" id="google-login-button"></div>
+      <p class="login-error hidden" id="login-error" role="alert"></p>
     </div>
   </div>
 
@@ -626,5 +705,6 @@
 
   <script src="/admin/app.js" defer></script>
   <script src="/admin/rules.js" defer></script>
+  <script src="/admin/users.js" defer></script>
 </body>
 </html>

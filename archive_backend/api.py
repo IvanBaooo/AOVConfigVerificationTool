@@ -136,6 +136,11 @@ class ArchiveApplication:
 					"contract_version": ARCHIVE_CONTRACT_VERSION,
 					"auth_required": self._auth_required,
 					"auth_mode": self.auth_mode,
+					"google_client_id": (
+						getattr(self.google_verifier, "client_id", "")
+						if self.auth_mode == AUTH_MODE_GOOGLE
+						else ""
+					),
 				},
 			)
 

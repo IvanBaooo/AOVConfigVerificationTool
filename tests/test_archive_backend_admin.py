@@ -59,7 +59,7 @@ class ArchiveAdminHttpTests(unittest.TestCase):
 		self.assertIn(b'id="nav-dashboard"', index)
 		self.assertIn(b'id="dashboard-view"', index)
 		self.assertIn(b'class="admin-account"', index)
-		self.assertIn("管理员 · 开发态".encode("utf-8"), index)
+		self.assertIn(b"id=\"account-role\"", index)
 		self.assertIn(b'data-region="TW"', index)
 		self.assertNotIn(b'id="filter-region"', index)
 		self.assertNotIn(b'class="filter-bar"', index)

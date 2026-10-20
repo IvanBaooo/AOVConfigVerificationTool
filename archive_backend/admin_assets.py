@@ -17,6 +17,7 @@ ASSET_ROUTES = {
 	"/admin/": ("index.html", "text/html; charset=utf-8"),
 	"/admin/app.js": ("app.js", "text/javascript; charset=utf-8"),
 	"/admin/rules.js": ("rules.js", "text/javascript; charset=utf-8"),
+	"/admin/users.js": ("users.js", "text/javascript; charset=utf-8"),
 	"/admin/rules.css": ("rules.css", "text/css; charset=utf-8"),
 	"/admin/styles.css": ("styles.css", "text/css; charset=utf-8"),
 }

@@ -2050,3 +2050,137 @@ dialog::backdrop {
     transition-duration: .01ms !important;
   }
 }
+
+/* --------------------------------------------------------------------------
+   登录页与账号管理（zinc token，沿用既有 badge/button 语义）
+   -------------------------------------------------------------------------- */
+.login-view {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  background: var(--surface);
+}
+
+.login-card {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  padding: 40px 48px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  text-align: center;
+}
+
+.login-card h1 { font-size: 18px; margin: 0; }
+
+.login-card p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+.login-button-slot { margin-top: 8px; min-height: 44px; }
+
+.login-error {
+  color: var(--red, #dc2626);
+  font-size: 12.5px;
+  max-width: 300px;
+}
+
+.users-panel {
+  margin-top: 16px;
+  padding: 16px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+}
+
+.users-hint {
+  margin: 4px 0 10px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.users-add-form {
+  display: flex;
+  gap: 8px;
+  margin: 10px 0 14px;
+}
+
+.users-add-form input,
+.users-add-form select {
+  padding: 7px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 12.5px;
+}
+
+.users-add-form input { flex: 1; min-width: 0; max-width: 320px; }
+
+.users-table-wrap { overflow-x: auto; }
+
+.users-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+
+.users-table th,
+.users-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+}
+
+.users-table th {
+  color: var(--muted);
+  font-weight: 500;
+  font-size: 11.5px;
+}
+
+.users-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.users-self {
+  color: var(--muted);
+  font-size: 11.5px;
+}
+
+.token-plaintext {
+  margin: 0 0 14px;
+  padding: 12px;
+  background: var(--surface-sunken);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+
+.token-plaintext p {
+  margin: 0 0 8px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.token-plaintext-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.token-plaintext-row code {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--ink);
+}

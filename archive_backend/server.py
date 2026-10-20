@@ -481,6 +481,7 @@ def main() -> int:
 		elif auth_mode == "google":
 			if not google_client_id:
 				raise SystemExit("GOOGLE_CLIENT_ID is required when AOV_AUTH_MODE=google.")
+			access_token = None
 		else:
 			raise SystemExit(f"Unsupported AOV_AUTH_MODE: {auth_mode}")
 	google_verifier = None

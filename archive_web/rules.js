@@ -1,6 +1,8 @@
 const ruleUi = {
   dashboardNav: document.querySelector("#nav-dashboard"), archiveNav: document.querySelector("#nav-archives"), rulesNav: document.querySelector("#nav-rules"),
+  usersNav: document.querySelector("#nav-users"),
   dashboardView: document.querySelector("#dashboard-view"), archiveView: document.querySelector("#archive-view"), rulesView: document.querySelector("#rules-view"),
+  usersView: document.querySelector("#users-view"),
   pageKicker: document.querySelector("#page-kicker"), pageTitle: document.querySelector("#page-title"),
   archiveRefresh: document.querySelector("#refresh-button"), refresh: document.querySelector("#rules-refresh"),
   newDraft: document.querySelector("#rules-new-draft"), caption: document.querySelector("#rules-caption"),
@@ -60,9 +62,10 @@ async function ruleRequest(path, { method = "GET", body = null } = {}) {
   return payload;
 }
 function showRulesView() {
-  ruleUi.dashboardView.classList.add("hidden"); ruleUi.archiveView.classList.add("hidden"); ruleUi.rulesView.classList.remove("hidden");
+  ruleUi.dashboardView.classList.add("hidden"); ruleUi.archiveView.classList.add("hidden"); ruleUi.usersView.classList.add("hidden"); ruleUi.rulesView.classList.remove("hidden");
   ruleUi.dashboardNav.classList.remove("active"); ruleUi.dashboardNav.removeAttribute("aria-current");
   ruleUi.archiveNav.classList.remove("active"); ruleUi.archiveNav.removeAttribute("aria-current");
+  ruleUi.usersNav.classList.remove("active"); ruleUi.usersNav.removeAttribute("aria-current");
   ruleUi.rulesNav.classList.add("active"); ruleUi.rulesNav.setAttribute("aria-current", "page");
   ruleUi.pageKicker.textContent = "校验配置"; ruleUi.pageTitle.textContent = "规则版本管理";
   ruleUi.archiveRefresh.classList.add("hidden");
@@ -70,9 +73,10 @@ function showRulesView() {
   if (!ruleState.items.length && !ruleState.loading) loadRuleHistory();
 }
 function showArchiveView() {
-  ruleUi.dashboardView.classList.add("hidden"); ruleUi.rulesView.classList.add("hidden"); ruleUi.archiveView.classList.remove("hidden");
+  ruleUi.dashboardView.classList.add("hidden"); ruleUi.rulesView.classList.add("hidden"); ruleUi.usersView.classList.add("hidden"); ruleUi.archiveView.classList.remove("hidden");
   ruleUi.dashboardNav.classList.remove("active"); ruleUi.dashboardNav.removeAttribute("aria-current");
   ruleUi.rulesNav.classList.remove("active"); ruleUi.rulesNav.removeAttribute("aria-current");
+  ruleUi.usersNav.classList.remove("active"); ruleUi.usersNav.removeAttribute("aria-current");
   ruleUi.archiveNav.classList.add("active"); ruleUi.archiveNav.setAttribute("aria-current", "page");
   ruleUi.pageKicker.textContent = "数据发布管理"; ruleUi.pageTitle.textContent = "归档记录";
   ruleUi.archiveRefresh.classList.remove("hidden");
