@@ -121,6 +121,8 @@ def renderer_settings(settings: Mapping[str, object]) -> dict[str, object]:
 	"""Return local settings without exposing persisted passwords to the renderer."""
 	result = dict(settings)
 	result.pop("svn_password", None)
+	result["backend_token_configured"] = bool(_string(settings.get("backend_token")))
+	result.pop("backend_token", None)
 	profiles = settings.get("ftp_profiles")
 	safe_profiles: dict[str, dict[str, object]] = {}
 	if isinstance(profiles, Mapping):
@@ -166,9 +168,15 @@ def merge_settings(
 ) -> dict[str, object]:
 	merged = dict(existing)
 	for key, value in incoming.items():
-		if key not in {"ftp_profiles", "svn_password"}:
+		if key not in {"ftp_profiles", "svn_password", "backend_token", "clear_backend_token"}:
 			merged[key] = value
 	merged.pop("svn_password", None)
+
+	incoming_token = incoming.get("backend_token")
+	if isinstance(incoming_token, str) and incoming_token:
+		merged["backend_token"] = incoming_token
+	elif incoming.get("clear_backend_token") is True:
+		merged["backend_token"] = ""
 
 	existing_profiles = existing.get("ftp_profiles")
 	stored_profiles = dict(existing_profiles) if isinstance(existing_profiles, Mapping) else {}
@@ -530,7 +538,7 @@ class ElectronBridgeService:
 				baseline = ReleaseBaselineClient().fetch(
 					base_url=base_url,
 					region_code=region,
-					access_token=_string(payload.get("backend_token")),
+					access_token=self._backend_token(payload),
 				)
 			except Exception as error:
 				result["baseline_error"] = str(error)
@@ -542,6 +550,13 @@ class ElectronBridgeService:
 					"package_version": baseline.package_version,
 				}
 		return result
+
+	def _backend_token(self, payload: Mapping[str, object]) -> str:
+		token = _string(payload.get("backend_token"))
+		if token:
+			return token
+		settings = load_local_settings(self.settings_path)
+		return _string(settings.get("backend_token")) or os.environ.get("AOV_BACKEND_TOKEN", "")
 
 	def _ftp_settings(self, region: str, overrides: Mapping[str, object] | None = None) -> FtpSettings:
 		settings = load_local_settings(self.settings_path)
@@ -864,7 +879,7 @@ class ElectronBridgeService:
 		settings = load_local_settings(self.settings_path)
 		backend = BackendSettings(
 			_string(settings.get("backend_url")),
-			_string(payload.get("backend_token")) or os.environ.get("AOV_BACKEND_TOKEN", ""),
+			self._backend_token(payload),
 		)
 		service = ManualPublicationService(sync_queue=self.queue)
 		result = service.publish(
@@ -898,7 +913,7 @@ class ElectronBridgeService:
 		item = pending[0]
 		settings = BackendSettings(
 			item.backend_url,
-			_string(payload.get("backend_token")) or os.environ.get("AOV_BACKEND_TOKEN", ""),
+			self._backend_token(payload),
 		)
 		try:
 			result = ArchiveBackendClient().sync_payload(item.payload, settings)

@@ -212,6 +212,8 @@ function applySettings(settings) {
   $("#svn-username").value = settings.svn_username || "";
   $("#use-auth-cache").checked = settings.use_auth_cache !== false;
   $("#backend-url").value = settings.backend_url || "http://127.0.0.1:8780";
+  $("#backend-token").value = "";
+  $("#backend-token").placeholder = settings.backend_token_configured ? "已配置，留空保持" : "输入 API Token";
   $("#package-version").value = settings.package_version || "";
   $("#scope-roots").value = settings.scope_roots || "/Taiwan";
   $("#enable-commit-check").checked = settings.enable_commit_check !== false;
@@ -409,6 +411,7 @@ function collectSettings() {
     commit_whitelist: $("#commit-whitelist").value,
     commit_high_risk: $("#commit-high-risk").value,
     backend_url: $("#backend-url").value.trim(),
+    backend_token: $("#backend-token").value.trim(),
     ftp_profiles: state.ftpProfiles,
     disabled_rule_ids: $$("#rule-toggles input[type=checkbox]")
       .filter((cb) => !cb.checked)

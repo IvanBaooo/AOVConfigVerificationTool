@@ -28,6 +28,7 @@ STRING_FIELDS = (
 	"ftp_username",
 	"ftp_remote_directory",
 	"backend_url",
+	"backend_token",
 )
 
 BOOLEAN_FIELDS = (
