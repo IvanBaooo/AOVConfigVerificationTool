@@ -2141,6 +2141,33 @@ dialog::backdrop {
   line-height: 1.6;
 }
 
+.profile-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.profile-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  background: var(--surface-subtle, #fafafa);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm, 6px);
+}
+
+.profile-item span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.profile-item strong {
+  font-size: 13px;
+  font-weight: 600;
+  word-break: break-all;
+}
+
 .users-add-form {
   display: flex;
   gap: 8px;

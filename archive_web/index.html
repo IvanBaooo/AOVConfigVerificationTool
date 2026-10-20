@@ -43,7 +43,6 @@
           <span class="state-dot" aria-hidden="true"></span>
           <span id="service-label">检查服务</span>
         </div>
-        <button class="sidebar-action hidden" id="connection-button" type="button">连接设置</button>
       </div>
     </aside>
 
@@ -561,26 +560,14 @@
           </div>
           <div class="rules-notice notice hidden" id="users-notice" role="status"></div>
 
-          <section class="users-panel" id="users-admin-panel" aria-labelledby="users-admin-title">
+          <section class="users-panel" id="profile-panel" aria-labelledby="profile-title">
             <div class="rules-panel-heading">
-              <h3 id="users-admin-title">授权用户</h3>
-              <span id="users-count">0</span>
+              <h3 id="profile-title">个人信息</h3>
             </div>
-            <form class="users-add-form" id="user-add-form">
-              <input id="user-add-email" type="email" required placeholder="Google 邮箱地址" autocomplete="off">
-              <select id="user-add-role" aria-label="角色">
-                <option value="member">成员</option>
-                <option value="admin">管理员</option>
-              </select>
-              <button class="button button-primary" type="submit">添加授权</button>
-            </form>
-            <div class="users-table-wrap">
-              <table class="users-table">
-                <thead>
-                  <tr><th>邮箱</th><th>角色</th><th>状态</th><th>最近登录</th><th>操作</th></tr>
-                </thead>
-                <tbody id="users-rows"></tbody>
-              </table>
+            <div class="profile-grid">
+              <div class="profile-item"><span>邮箱</span><strong id="profile-email">-</strong></div>
+              <div class="profile-item"><span>显示名</span><strong id="profile-name">-</strong></div>
+              <div class="profile-item"><span>角色</span><strong id="profile-role">-</strong></div>
             </div>
           </section>
 
@@ -607,6 +594,29 @@
                   <tr><th>备注</th><th>创建时间</th><th>最近使用</th><th>操作</th></tr>
                 </thead>
                 <tbody id="tokens-rows"></tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="users-panel" id="users-admin-panel" aria-labelledby="users-admin-title">
+            <div class="rules-panel-heading">
+              <h3 id="users-admin-title">授权用户</h3>
+              <span id="users-count">0</span>
+            </div>
+            <form class="users-add-form" id="user-add-form">
+              <input id="user-add-email" type="email" required placeholder="Google 邮箱地址" autocomplete="off">
+              <select id="user-add-role" aria-label="角色">
+                <option value="member">成员</option>
+                <option value="admin">管理员</option>
+              </select>
+              <button class="button button-primary" type="submit">添加授权</button>
+            </form>
+            <div class="users-table-wrap">
+              <table class="users-table">
+                <thead>
+                  <tr><th>邮箱</th><th>角色</th><th>状态</th><th>最近登录</th><th>操作</th></tr>
+                </thead>
+                <tbody id="users-rows"></tbody>
               </table>
             </div>
           </section>
@@ -681,25 +691,6 @@
       <div class="dialog-actions">
         <button class="button button-quiet" id="archive-action-cancel" type="button">取消</button>
         <button class="button button-primary" id="archive-action-confirm" type="submit">确认</button>
-      </div>
-    </form>
-  </dialog>
-  <dialog id="connection-dialog">
-    <form method="dialog" class="dialog-form" id="connection-form">
-      <div class="dialog-heading">
-        <div>
-          <p>后端连接</p>
-          <h2>访问凭据</h2>
-        </div>
-        <button class="icon-button" value="cancel" aria-label="关闭" title="关闭">×</button>
-      </div>
-      <label>
-        <span>Bearer Token</span>
-        <input id="token-input" type="password" autocomplete="off" required>
-      </label>
-      <div class="dialog-actions">
-        <button class="button button-quiet" value="cancel">取消</button>
-        <button class="button button-primary" id="save-token" value="default">连接</button>
       </div>
     </form>
   </dialog>

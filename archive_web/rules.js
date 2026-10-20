@@ -51,7 +51,6 @@ function setRuleNotice(message = "", kind = "") {
 async function ruleRequest(path, { method = "GET", body = null } = {}) {
   const headers = { Accept: "application/json" };
   if (body !== null) headers["Content-Type"] = "application/json";
-  if (typeof state !== "undefined" && state.authRequired && state.token) headers.Authorization = `Bearer ${state.token}`;
   const response = await fetch(path, { method, headers, body: body === null ? undefined : JSON.stringify(body), cache: "no-store" });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {

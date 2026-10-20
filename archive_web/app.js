@@ -1,27 +1,8 @@
 "use strict";
 
 const PAGE_SIZE = 20;
-const TOKEN_KEY = "aov_archive_backend_token";
-
-function readStoredToken() {
-  try {
-    return sessionStorage.getItem(TOKEN_KEY) || "";
-  } catch (_error) {
-    return "";
-  }
-}
-
-function storeToken(token) {
-  try {
-    if (token) sessionStorage.setItem(TOKEN_KEY, token);
-    else sessionStorage.removeItem(TOKEN_KEY);
-  } catch (_error) {
-    // The current page can still use the in-memory token.
-  }
-}
 
 const state = {
-  token: readStoredToken(),
   authRequired: true,
   authMode: "",
   googleClientId: "",
@@ -63,7 +44,6 @@ const elements = {
   serviceState: document.querySelector("#service-state"),
   serviceLabel: document.querySelector("#service-label"),
   refreshButton: document.querySelector("#refresh-button"),
-  connectionButton: document.querySelector("#connection-button"),
   filterForm: document.querySelector("#filter-form"),
   regionButtons: document.querySelectorAll(".region-button"),
   filterVersion: document.querySelector("#filter-version"),
@@ -88,9 +68,6 @@ const elements = {
   detailTitle: document.querySelector("#detail-title"),
   detailLoading: document.querySelector("#detail-loading"),
   detailContent: document.querySelector("#detail-content"),
-  connectionDialog: document.querySelector("#connection-dialog"),
-  connectionForm: document.querySelector("#connection-form"),
-  tokenInput: document.querySelector("#token-input"),
   archiveActionDialog: document.querySelector("#archive-action-dialog"),
   archiveActionForm: document.querySelector("#archive-action-form"),
   archiveActionTitle: document.querySelector("#archive-action-title"),
@@ -335,9 +312,6 @@ async function logout() {
 
 async function apiRequest(path, { authenticated = true, method = "GET", body = null } = {}) {
   const headers = { Accept: "application/json" };
-  if (authenticated && state.authRequired && state.token) {
-    headers.Authorization = "Bearer " + state.token;
-  }
   if (body !== null) headers["Content-Type"] = "application/json";
   let response;
   try {
@@ -370,7 +344,6 @@ async function checkHealth() {
     state.authMode = String(health.auth_mode || "");
     state.googleClientId = String(health.google_client_id || "");
     state.iamSignoutUrl = String(health.iam_signout_url || "");
-    elements.connectionButton.classList.toggle("hidden", !state.authRequired || state.authMode === "google" || state.authMode === "iam");
     setServiceState(health.status === "ok" ? "online" : "offline", health.status === "ok" ? "服务正常" : "服务异常");
     return true;
   } catch (_error) {
@@ -871,11 +844,13 @@ async function loadAudit() {
 }
 function handleApiError(error) {
   if (error instanceof ApiError && error.status === 401) {
-    state.token = "";
-    storeToken("");
-    setNotice("访问凭据无效，请重新连接。", "error");
+    if (state.authMode === "google" || state.authMode === "iam") {
+      showLoginView();
+      setLoginError("登录已过期，请重新登录。");
+      return;
+    }
+    setNotice("访问凭据无效，请重新登录。", "error");
     setTableState("需要有效的后端访问凭据");
-    openConnectionDialog();
     return;
   }
   setNotice(error.message || "读取归档记录失败。", "error");
@@ -885,11 +860,6 @@ function handleApiError(error) {
 async function loadArchives() {
   if (state.loading) {
     state.reloadRequested = true;
-    return;
-  }
-  if (state.authRequired && !state.token) {
-    setTableState("需要后端访问凭据");
-    openConnectionDialog();
     return;
   }
   state.loading = true;
@@ -1372,12 +1342,6 @@ async function loadDetail(packageId) {
   }
 }
 
-function openConnectionDialog() {
-  elements.tokenInput.value = state.token;
-  if (!elements.connectionDialog.open) elements.connectionDialog.showModal();
-  window.setTimeout(() => elements.tokenInput.focus(), 0);
-}
-
 elements.dashboardNav.addEventListener("click", showDashboardView);
 elements.logoutButton.addEventListener("click", logout);
 
@@ -1473,21 +1437,6 @@ elements.refreshButton.addEventListener("click", async () => {
   await checkHealth();
   if (!elements.dashboardView.classList.contains("hidden")) loadDashboard();
   else loadArchives();
-});
-
-elements.connectionButton.addEventListener("click", openConnectionDialog);
-elements.connectionForm.addEventListener("submit", (event) => {
-  event.preventDefault();
-  if (event.submitter?.value === "cancel") {
-    elements.connectionDialog.close();
-    return;
-  }
-  state.token = elements.tokenInput.value.trim();
-  if (!state.token) return;
-  storeToken(state.token);
-  elements.connectionDialog.close();
-  state.offset = 0;
-  loadArchives();
 });
 
 elements.previousPage.addEventListener("click", () => {
@@ -1708,15 +1657,10 @@ async function bootstrap() {
     }
     return;
   }
-  if (!state.authRequired || state.token) {
-    loadArchives();
-    apiRequest("/api/v1/auth/me")
-      .then((me) => applyUser(me.user))
-      .catch(() => {});
-  } else {
-    setTableState("需要后端访问凭据");
-    openConnectionDialog();
-  }
+  loadArchives();
+  apiRequest("/api/v1/auth/me")
+    .then((me) => applyUser(me.user))
+    .catch(() => {});
 }
 
 bootstrap();

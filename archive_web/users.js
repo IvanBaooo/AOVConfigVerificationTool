@@ -12,6 +12,9 @@ const userUi = {
   pageKicker: document.querySelector("#page-kicker"),
   pageTitle: document.querySelector("#page-title"),
   notice: document.querySelector("#users-notice"),
+  profileEmail: document.querySelector("#profile-email"),
+  profileName: document.querySelector("#profile-name"),
+  profileRole: document.querySelector("#profile-role"),
   adminPanel: document.querySelector("#users-admin-panel"),
   usersCount: document.querySelector("#users-count"),
   usersRows: document.querySelector("#users-rows"),
@@ -52,9 +55,6 @@ function setUsersNotice(message = "", kind = "") {
 async function userRequest(path, { method = "GET", body = null } = {}) {
   const headers = { Accept: "application/json" };
   if (body !== null) headers["Content-Type"] = "application/json";
-  if (typeof state !== "undefined" && state.authMode !== "google" && state.authMode !== "iam" && state.authRequired && state.token) {
-    headers.Authorization = `Bearer ${state.token}`;
-  }
   const response = await fetch(path, { method, headers, body: body === null ? undefined : JSON.stringify(body), cache: "no-store" });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
@@ -85,9 +85,19 @@ function showUsersView() {
   if (!usersPageState.loaded && !usersPageState.loading) loadUsersPage();
 }
 
+function renderProfile() {
+  const user = state.user || {};
+  userUi.profileEmail.textContent = user.email || "-";
+  userUi.profileName.textContent = user.display_name || "-";
+  userUi.profileRole.innerHTML = user.role === "admin"
+    ? '<span class="badge badge-success">管理员</span>'
+    : '<span class="badge badge-neutral">成员</span>';
+}
+
 async function loadUsersPage() {
   usersPageState.loading = true;
   setUsersNotice("");
+  renderProfile();
   const isAdmin = state.user?.role === "admin";
   userUi.adminPanel.classList.toggle("hidden", !isAdmin);
   const jobs = [loadTokens()];
