@@ -36,7 +36,7 @@ CONFIG = IamConfig(
 	client_id="SSTESTCLIENT",
 	client_secret="test-secret",
 	redirect_uri="https://aov.example.com/auth/callback",
-	signout_redirect_uri="https://aov.example.com/admin/",
+	signout_redirect_uri="https://aov.example.com/app/",
 )
 
 
@@ -97,7 +97,7 @@ class IamAuthTests(unittest.TestCase):
 		response = self.callback("code-admin", state, cookie)
 
 		self.assertEqual(302, response.status)
-		self.assertEqual("/admin/", response.headers["Location"])
+		self.assertEqual("/app/", response.headers["Location"])
 		set_cookie = response.headers["Set-Cookie"]
 		self.assertIn("aov_session=", set_cookie)
 
@@ -114,7 +114,7 @@ class IamAuthTests(unittest.TestCase):
 		_, state2, cookie2 = self.start_login()
 		rejected = self.callback("code-member", state2, cookie2)
 		self.assertEqual(302, rejected.status)
-		self.assertEqual("/admin/?login_error=not_in_whitelist", rejected.headers["Location"])
+		self.assertEqual("/app/?login_error=not_in_whitelist", rejected.headers["Location"])
 
 		admin_cookie = self.callback("code-admin", *self.start_login()[1:]).headers["Set-Cookie"].split(";", 1)[0]
 		self.application.handle(
@@ -125,21 +125,21 @@ class IamAuthTests(unittest.TestCase):
 		)
 		_, state3, cookie3 = self.start_login()
 		accepted = self.callback("code-member", state3, cookie3)
-		self.assertEqual("/admin/", accepted.headers["Location"])
+		self.assertEqual("/app/", accepted.headers["Location"])
 
 	def test_callback_rejects_bad_or_missing_state(self) -> None:
 		_, state, cookie = self.start_login()
 
 		mismatched = self.callback("code-admin", "wrong.state.here", cookie)
-		self.assertEqual("/admin/?login_error=invalid_state", mismatched.headers["Location"])
+		self.assertEqual("/app/?login_error=invalid_state", mismatched.headers["Location"])
 
 		no_cookie = self.callback("code-admin", state, "")
-		self.assertEqual("/admin/?login_error=invalid_state", no_cookie.headers["Location"])
+		self.assertEqual("/app/?login_error=invalid_state", no_cookie.headers["Location"])
 
 	def test_exchange_failure_redirects_with_error(self) -> None:
 		_, state, cookie = self.start_login()
 		response = self.callback("unknown-code", state, cookie)
-		self.assertEqual("/admin/?login_error=iam_exchange_failed", response.headers["Location"])
+		self.assertEqual("/app/?login_error=iam_exchange_failed", response.headers["Location"])
 
 	def test_iam_routes_are_hidden_in_other_modes(self) -> None:
 		application = ArchiveApplication(

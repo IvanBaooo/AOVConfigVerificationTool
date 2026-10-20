@@ -508,7 +508,7 @@ def main() -> int:
 			client_id=os.environ["IAM_CLIENT_ID"].strip(),
 			client_secret=os.environ["IAM_CLIENT_SECRET"].strip(),
 			redirect_uri=os.environ["IAM_REDIRECT_URI"].strip(),
-			signout_redirect_uri=os.environ.get("IAM_SIGNOUT_REDIRECT_URI", "").strip() or "/admin/",
+			signout_redirect_uri=os.environ.get("IAM_SIGNOUT_REDIRECT_URI", "").strip() or "/app/",
 			base_url=os.environ.get("IAM_BASE_URL", "").strip() or IAM_DEFAULT_BASE_URL,
 		)
 		iam_client = IamClient(iam_config)

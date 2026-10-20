@@ -387,7 +387,7 @@ class ArchiveApplication:
 
 	@staticmethod
 	def _iam_error_redirect(code: str) -> ApiResponse:
-		return ApiResponse(302, {}, {"Location": f"/admin/?login_error={code}"})
+		return ApiResponse(302, {}, {"Location": f"/app/?login_error={code}"})
 
 	def _iam_login_redirect(self) -> ApiResponse:
 		if self.auth_mode != AUTH_MODE_IAM or self.iam_config is None:
@@ -433,7 +433,7 @@ class ArchiveApplication:
 			302,
 			{},
 			{
-				"Location": "/admin/",
+				"Location": "/app/",
 				"Set-Cookie": self._session_cookie(session_id),
 			},
 		)

@@ -40,18 +40,26 @@ class ArchiveAdminHttpTests(unittest.TestCase):
 		connection.close()
 		return status, response_headers, body
 
-	def test_root_redirects_to_admin_interface(self) -> None:
+	def test_root_redirects_to_app_interface(self) -> None:
 		status, headers, body = self.request("GET", "/")
 		self.assertEqual(status, 302)
-		self.assertEqual(headers["Location"], "/admin/")
+		self.assertEqual(headers["Location"], "/app/")
 		self.assertEqual(body, b"")
 
+	def test_legacy_admin_path_redirects_to_app(self) -> None:
+		status, headers, _body = self.request("GET", "/admin/")
+		self.assertEqual(status, 302)
+		self.assertEqual(headers["Location"], "/app/")
+		js_status, js_headers, _ = self.request("GET", "/admin/app.js")
+		self.assertEqual(js_status, 302)
+		self.assertEqual(js_headers["Location"], "/app/app.js")
+
 	def test_admin_assets_are_public_and_hardened(self) -> None:
-		index_status, index_headers, index = self.request("GET", "/admin/")
-		js_status, js_headers, javascript = self.request("GET", "/admin/app.js")
-		rules_js_status, rules_js_headers, rules_javascript = self.request("GET", "/admin/rules.js")
-		css_status, css_headers, stylesheet = self.request("GET", "/admin/styles.css")
-		rules_css_status, rules_css_headers, rules_stylesheet = self.request("GET", "/admin/rules.css")
+		index_status, index_headers, index = self.request("GET", "/app/")
+		js_status, js_headers, javascript = self.request("GET", "/app/app.js")
+		rules_js_status, rules_js_headers, rules_javascript = self.request("GET", "/app/rules.js")
+		css_status, css_headers, stylesheet = self.request("GET", "/app/styles.css")
+		rules_css_status, rules_css_headers, rules_stylesheet = self.request("GET", "/app/rules.css")
 
 		self.assertEqual(index_status, 200)
 		self.assertIn("AOV 配置归档".encode("utf-8"), index)
