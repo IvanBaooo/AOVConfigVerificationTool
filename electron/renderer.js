@@ -33,17 +33,14 @@ function showView(view) {
   state.view = view;
   $("#pack-view").classList.toggle("hidden", view !== "pack");
   $("#settings-view").classList.toggle("hidden", view !== "settings");
-  $("#showcase-view").classList.toggle("hidden", view !== "showcase");
   $$(".nav-item").forEach((button) => button.classList.toggle("active", button.dataset.view === view));
   const titles = {
     pack: ["LOCAL PACKAGING", "打包任务"],
     settings: ["MACHINE SETTINGS", "本地配置"],
-    showcase: ["RULE SHOWCASE", "演示模式"],
   };
   const [eyebrow, title] = titles[view] || titles.pack;
   $("#page-title").textContent = title;
   $("#page-eyebrow").textContent = eyebrow;
-  if (view === "showcase") loadShowcaseStatus();
 }
 
 function selectSegment(container, matcher) {
@@ -990,271 +987,6 @@ function renderResult(result) {
   $("#result-section").scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
-// ---- 演示模式（Showcase）：本地克隆 + 场景注入，不访问 SVN ----
-
-async function loadShowcaseStatus() {
-  const box = $("#showcase-scenes");
-  if (!box) return;
-  try {
-    const status = await window.aov.request("showcase_status");
-    state.showcaseWorkspace = status.workspace || "";
-    $("#showcase-workspace").textContent = status.workspace || "--";
-    $("#showcase-state").textContent = status.initialized ? "已初始化" : "未初始化";
-    if (status.initialized) loadEditorTables();
-    const scenes = status.initialized
-      ? (Array.isArray(status.scenes) ? status.scenes : [])
-      : (status.scene_catalog || []).map((s) => ({ ...s, applied: null }));
-    box.replaceChildren(...scenes.map((scene) => {
-      const row = el("div", "scene-row");
-      const badge = scene.applied === true ? el("span", "tag tag-green", "已注入")
-        : scene.applied === false ? el("span", "tag tag-red", "未生效")
-        : el("span", "tag tag-plain", "待初始化");
-      const main = el("div", "scene-main");
-      main.append(el("p", "scene-title", scene.title || scene.id));
-      main.append(el("p", "scene-desc", scene.description || ""));
-      if (scene.detail) main.append(el("p", "scene-detail", scene.detail));
-      row.append(badge, main);
-      return row;
-    }));
-  } catch (error) {
-    box.replaceChildren(el("p", "empty-hint", error.message));
-  }
-}
-
-async function initShowcase() {
-  if (state.busy) return;
-  state.busy = true;
-  $("#init-showcase").disabled = true;
-  try {
-    await window.aov.request("init_showcase", { reset: true });
-    toast("演示数据已就绪（已应用全部演示场景）", "success");
-    await loadShowcaseStatus();
-  } catch (error) {
-    toast(error.message, "error");
-  } finally {
-    state.busy = false;
-    $("#init-showcase").disabled = false;
-  }
-}
-
-async function runShowcase() {
-  if (state.busy) return;
-  state.busy = true;
-  $("#run-showcase").disabled = true;
-  clearLog();
-  resetStages();
-  setRunStatus("演示执行中", "running");
-  activateStage("packaging", "执行中");
-  showView("pack");
-  try {
-    const result = await window.aov.request("run_showcase", {
-      baseline_revision: $("#showcase-baseline").value.trim(),
-      current_revision_spec: $("#showcase-current").value.trim(),
-    });
-    activateStage("review", "演示完成");
-    setRunStatus("演示完成", "success");
-    appendLog("演示校验完成（演示结果不可归档）", "success");
-    renderResult(result);
-    toast("演示校验完成", "success");
-  } catch (error) {
-    setRunStatus("失败", "error");
-    appendLog(error.message, "error");
-    toast(error.message, "error");
-  } finally {
-    state.busy = false;
-    $("#run-showcase").disabled = false;
-  }
-}
-
-// ---- 行编辑器（Showcase 阶段二）----
-
-function editorState() {
-  if (!state.editor) state.editor = { table: "", sheet: "", columns: [], rows: [], selected: -1 };
-  return state.editor;
-}
-
-async function loadEditorTables() {
-  const select = $("#editor-table");
-  if (!select) return;
-  try {
-    const result = await window.aov.request("showcase_tables");
-    const tables = Array.isArray(result.tables) ? result.tables : [];
-    select.replaceChildren(
-      el("option", "", "选择表…"),
-      ...tables.map((t) => {
-        const option = el("option", "", t.file_name);
-        option.value = t.file_name;
-        return option;
-      }),
-    );
-    select.querySelector("option").value = "";
-  } catch (error) {
-    select.replaceChildren(el("option", "", "加载失败"));
-  }
-}
-
-async function loadEditorSheets() {
-  const editor = editorState();
-  const select = $("#editor-sheet");
-  editor.sheet = "";
-  editor.rows = [];
-  editor.selected = -1;
-  renderEditorRows();
-  renderEditorForm();
-  if (!editor.table) {
-    select.replaceChildren(el("option", "", "选择 Sheet…"));
-    return;
-  }
-  try {
-    const result = await window.aov.request("showcase_sheets", { table: editor.table });
-    const sheets = Array.isArray(result.sheets) ? result.sheets : [];
-    select.replaceChildren(
-      el("option", "", "选择 Sheet…"),
-      ...sheets.map((s) => {
-        const option = el("option", "", `${s.name}（${s.row_count} 行）`);
-        option.value = s.name;
-        return option;
-      }),
-    );
-    select.querySelector("option").value = "";
-  } catch (error) {
-    toast(error.message, "error");
-  }
-}
-
-async function loadEditorRows() {
-  const editor = editorState();
-  if (!editor.table || !editor.sheet) return;
-  try {
-    const result = await window.aov.request("showcase_rows", {
-      table: editor.table,
-      sheet: editor.sheet,
-      keyword: $("#editor-search").value.trim(),
-      limit: 200,
-    });
-    editor.columns = result.columns || [];
-    editor.rows = result.rows || [];
-    editor.selected = -1;
-    renderEditorRows();
-    renderEditorForm();
-  } catch (error) {
-    toast(error.message, "error");
-  }
-}
-
-function renderEditorRows() {
-  const editor = editorState();
-  const box = $("#editor-rows");
-  if (!editor.rows.length) {
-    box.replaceChildren(el("p", "empty-hint", editor.sheet ? "没有匹配的行" : "先选择表与 Sheet"));
-    return;
-  }
-  box.replaceChildren(...editor.rows.map((row) => {
-    const item = el("div", `row-item${row.index === editor.selected ? " selected" : ""}`);
-    item.append(el("span", "row-item-key", row.key || `#${row.index}`));
-    item.append(el("span", "row-item-label", row.label || ""));
-    item.addEventListener("click", () => {
-      editor.selected = row.index;
-      renderEditorRows();
-      renderEditorForm();
-    });
-    return item;
-  }));
-}
-
-function renderEditorForm() {
-  const editor = editorState();
-  const box = $("#editor-form");
-  const row = editor.rows.find((r) => r.index === editor.selected);
-  if (!row) {
-    box.replaceChildren(el("p", "empty-hint", "从左侧选择一行进行编辑"));
-    return;
-  }
-  const form = el("div", "row-form-fields");
-  editor.columns.forEach((column) => {
-    const label = el("label", "row-field");
-    label.append(el("span", "", column));
-    const input = el("input");
-    input.type = "text";
-    input.value = row.cells[column] || "";
-    input.dataset.column = column;
-    label.append(input);
-    form.append(label);
-  });
-  const actions = el("div", "row-form-actions");
-  const saveBtn = el("button", "primary-button", "保存修改");
-  saveBtn.type = "button";
-  saveBtn.addEventListener("click", saveEditorRow);
-  const addBtn = el("button", "quiet-button", "以此为模板新增行");
-  addBtn.type = "button";
-  addBtn.addEventListener("click", addEditorRow);
-  const deleteBtn = el("button", "quiet-button danger", "删除此行");
-  deleteBtn.type = "button";
-  deleteBtn.addEventListener("click", deleteEditorRow);
-  actions.append(saveBtn, addBtn, deleteBtn);
-  box.replaceChildren(form, actions);
-}
-
-async function saveEditorRow() {
-  const editor = editorState();
-  const row = editor.rows.find((r) => r.index === editor.selected);
-  if (!row) return;
-  const changes = {};
-  $$("#editor-form input").forEach((input) => {
-    if (input.value !== (row.cells[input.dataset.column] || "")) changes[input.dataset.column] = input.value;
-  });
-  if (!Object.keys(changes).length) {
-    toast("没有改动", "info");
-    return;
-  }
-  try {
-    await window.aov.request("showcase_update_row", {
-      table: editor.table, sheet: editor.sheet, row_index: editor.selected, changes,
-    });
-    toast(`已保存 ${Object.keys(changes).length} 个字段`, "success");
-    await loadEditorRows();
-    editor.selected = row.index;
-    renderEditorRows();
-    renderEditorForm();
-  } catch (error) {
-    toast(error.message, "error");
-  }
-}
-
-async function deleteEditorRow() {
-  const editor = editorState();
-  const row = editor.rows.find((r) => r.index === editor.selected);
-  if (!row) return;
-  if (!window.confirm(`确认删除行 ${row.key || editor.selected}（${row.label || "无名称"}）？只影响演示副本。`)) return;
-  try {
-    await window.aov.request("showcase_delete_row", {
-      table: editor.table, sheet: editor.sheet, row_index: editor.selected,
-    });
-    toast("已删除（演示副本）", "success");
-    await loadEditorRows();
-  } catch (error) {
-    toast(error.message, "error");
-  }
-}
-
-async function addEditorRow() {
-  const editor = editorState();
-  const row = editor.rows.find((r) => r.index === editor.selected);
-  if (!row) return;
-  try {
-    const result = await window.aov.request("showcase_add_row", {
-      table: editor.table, sheet: editor.sheet, row_index: editor.selected,
-    });
-    toast(`已复制新增行 #${result.row_index}，请修改关键字段后保存`, "success");
-    await loadEditorRows();
-    editor.selected = result.row_index;
-    renderEditorRows();
-    renderEditorForm();
-  } catch (error) {
-    toast(error.message, "error");
-  }
-}
-
 async function startPack() {
   if (state.busy) return;
   if (state.inputSource === "commits" && !$("#current-revision").value.trim()) {
@@ -1374,24 +1106,6 @@ function bindEvents() {
   $$(".nav-item").forEach((button) => button.addEventListener("click", () => showView(button.dataset.view)));
   createListEditor("commit-whitelist", "commit-whitelist-editor", "*/Databin/Server/Item/*");
   createListEditor("commit-high-risk", "commit-high-risk-editor", "*/Databin/Server/Shop/*");
-  $("#init-showcase").addEventListener("click", initShowcase);
-  $("#run-showcase").addEventListener("click", runShowcase);
-  $("#open-showcase-dir").addEventListener("click", () => {
-    if (state.showcaseWorkspace) window.aov.openPath(state.showcaseWorkspace);
-  });
-  $("#editor-table").addEventListener("change", (event) => {
-    editorState().table = event.target.value;
-    loadEditorSheets();
-  });
-  $("#editor-sheet").addEventListener("change", (event) => {
-    editorState().sheet = event.target.value;
-    loadEditorRows();
-  });
-  let editorSearchTimer = null;
-  $("#editor-search").addEventListener("input", () => {
-    clearTimeout(editorSearchTimer);
-    editorSearchTimer = setTimeout(loadEditorRows, 300);
-  });
   $("#region-select").addEventListener("change", (event) => setRegion(event.target.value));
   $("#local-root").addEventListener("input", () => { $("#scope-display").textContent = packDirFor(state.region); });
   $$(".input-source-control button").forEach((button) => button.addEventListener("click", () => setInputSource(button.dataset.source)));
@@ -1466,6 +1180,7 @@ async function bootstrap() {
     toast(`启动失败：${error.message}`, "error");
     setDot($("#backend-dot"), "error");
     $("#backend-status").textContent = "桥接失败";
+    renderRuleToggles(state.settings?.disabled_rule_ids);
   }
 }
 

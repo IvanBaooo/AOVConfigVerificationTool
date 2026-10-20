@@ -23,12 +23,8 @@
           <span class="nav-index">01</span>
           <span>打包任务</span>
         </button>
-        <button class="nav-item" type="button" data-view="showcase">
-          <span class="nav-index">02</span>
-          <span>演示模式</span>
-        </button>
         <button class="nav-item" type="button" data-view="settings">
-          <span class="nav-index">03</span>
+          <span class="nav-index">02</span>
           <span>本地配置</span>
         </button>
       </nav>
@@ -266,48 +262,6 @@
           </aside>
         </section>
 
-        <section class="view hidden" id="showcase-view">
-          <section class="settings-section">
-            <div class="section-heading">
-              <div><span class="section-number">01</span><h2>演示工作区</h2></div>
-              <span class="tag tag-plain" id="showcase-state">未初始化</span>
-            </div>
-            <p class="showcase-hint">演示数据是真实备份的本地克隆（APFS clonefile，几乎不占空间），所有场景改动只发生在副本上，不会提交 SVN。初始化后也可以用外部编辑器直接改副本里的 dtxml，再点「运行演示校验」。</p>
-            <div class="showcase-meta">
-              <span>工作目录</span>
-              <code id="showcase-workspace">--</code>
-              <button class="quiet-button" id="open-showcase-dir" type="button">打开目录</button>
-            </div>
-            <div class="form-grid">
-              <label><span>基线 Revision（上次对外）</span><input id="showcase-baseline" placeholder="1738000"></label>
-              <label><span>当前 Revision</span><input id="showcase-current" placeholder="1738100"></label>
-            </div>
-            <div class="showcase-actions">
-              <button class="quiet-button" id="init-showcase" type="button">初始化/重置演示数据</button>
-              <button class="primary-button" id="run-showcase" type="button">运行演示校验</button>
-            </div>
-          </section>
-
-          <section class="settings-section">
-            <div class="section-heading"><div><span class="section-number">02</span><h2>演示场景</h2></div></div>
-            <div class="scene-list" id="showcase-scenes"><p class="empty-hint">加载中…</p></div>
-          </section>
-
-          <section class="settings-section">
-            <div class="section-heading"><div><span class="section-number">03</span><h2>行编辑器</h2></div></div>
-            <p class="showcase-hint">直接编辑演示副本中的 dtxml 行（只改副本，不影响真实备份）。保存后点「运行演示校验」即可看到规则命中效果。</p>
-            <div class="row-editor-bar">
-              <select id="editor-table"><option value="">选择表…</option></select>
-              <select id="editor-sheet"><option value="">选择 Sheet…</option></select>
-              <input id="editor-search" placeholder="按 ID / 名称搜索">
-            </div>
-            <div class="row-editor-layout">
-              <div class="row-list" id="editor-rows"><p class="empty-hint">先初始化演示数据，再选择表与 Sheet</p></div>
-              <div class="row-form" id="editor-form"><p class="empty-hint">从左侧选择一行进行编辑</p></div>
-            </div>
-          </section>
-        </section>
-
         <section class="view hidden" id="settings-view">
           <form id="settings-form">
             <section class="settings-section">
@@ -342,7 +296,7 @@
                 <label><span>访问 Token</span><input type="password" id="backend-token" autocomplete="off"></label>
                 <div class="inline-action"><button class="quiet-button" id="test-backend" type="button">测试连接</button></div>
               </div>
-              <p class="showcase-hint">Google 登录模式下，在归档网页「账号管理」生成 API Token（aov_pk_ 前缀）粘贴到这里；保存后留空即保持已存 Token。</p>
+              <p class="form-hint">Google 登录模式下，在归档网页「账号管理」生成 API Token（aov_pk_ 前缀）粘贴到这里；保存后留空即保持已存 Token。</p>
             </section>
 
             <section class="settings-section">

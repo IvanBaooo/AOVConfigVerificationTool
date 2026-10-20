@@ -62,7 +62,7 @@ for days_ago in range(90):
                 })
             if random.random() < 0.12:
                 checks.append({
-                    "type": "package-completeness-manual", "name": "输入清单与包内容一一对应（仅手动bytes list场景）",
+                    "type": "package-completeness-manual", "name": "输入清单与包内容一一对应（文件列表模式）",
                     "status": "confirm", "warning_count": 0, "item_count": random.randint(1, 3),
                     "tables": ["（包级）"],
                 })

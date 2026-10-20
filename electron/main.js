@@ -1,9 +1,21 @@
 const { app, BrowserWindow, dialog, ipcMain, shell } = require("electron");
-const { spawn } = require("node:child_process");
+const { spawn, spawnSync } = require("node:child_process");
+const { existsSync } = require("node:fs");
 const path = require("node:path");
 const readline = require("node:readline");
 
 const PROJECT_ROOT = path.resolve(__dirname, "..");
+
+function resolveDevPython() {
+  if (process.env.AOV_PYTHON) return process.env.AOV_PYTHON;
+  const venvPython = path.join(PROJECT_ROOT, ".venv", "bin", "python");
+  if (existsSync(venvPython)) return venvPython;
+  for (const candidate of ["python3", "python"]) {
+    const probe = spawnSync(candidate, ["--version"], { stdio: "ignore" });
+    if (!probe.error && probe.status === 0) return candidate;
+  }
+  return "python3";
+}
 
 function resolveBridgeLaunch() {
   if (app.isPackaged) {
@@ -22,9 +34,8 @@ function resolveBridgeLaunch() {
       },
     };
   }
-  const python = process.env.AOV_PYTHON || "python";
   return {
-    command: python,
+    command: resolveDevPython(),
     args: [path.join(PROJECT_ROOT, "electron_bridge.py")],
     cwd: PROJECT_ROOT,
     env: { ...process.env, PYTHONUTF8: "1" },
@@ -54,7 +65,10 @@ class PythonBridge {
       const message = chunk.toString("utf8").trim();
       if (message) this.broadcast("bridge-error", { message });
     });
-    this.process.on("error", (error) => this.failAll(error));
+    this.process.on("error", (error) => {
+      this.process = null;
+      this.failAll(error);
+    });
     this.process.on("exit", (code) => {
       this.process = null;
       this.failAll(new Error(`Python bridge stopped with code ${code ?? "unknown"}`));
@@ -85,7 +99,12 @@ class PythonBridge {
     const id = `${Date.now()}-${++this.sequence}`;
     return new Promise((resolve, reject) => {
       this.pending.set(id, { resolve, reject });
-      this.process.stdin.write(`${JSON.stringify({ id, command, payload })}\n`, "utf8");
+      try {
+        this.process.stdin.write(`${JSON.stringify({ id, command, payload })}\n`, "utf8");
+      } catch (error) {
+        this.pending.delete(id);
+        reject(error);
+      }
     });
   }
 

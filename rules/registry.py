@@ -122,8 +122,8 @@ _RULE_SPECS: List[Dict[str, object]] = [
     {
         "id": "package-completeness-manual",
         "type": "package_completeness",
-        "name": "输入清单与包内容一一对应（仅手动bytes list场景）",
-        "description": "文件列表模式下核对输入清单与包内容一一对应，防空包/漏打；"
+        "name": "输入清单与包内容一一对应（文件列表模式）",
+        "description": "文件列表模式下核对输入清单与包内容一一对应，防空包、漏打；"
                        "SVN 提交模式由提交校验覆盖，自动跳过。",
         "default_enabled": True,
         "scope": "package",

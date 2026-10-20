@@ -74,7 +74,7 @@
         "enabled": true,
         "severity": "warning",
         "blocking": false,
-        "name": "输入清单与包内容一一对应（仅手动bytes list场景）",
+        "name": "输入清单与包内容一一对应（文件列表模式）",
         "source_incident": "I2 2022-09-07 VN 凡恩觉醒bytes遗漏、I4 2022-11-04 TH 拉维尔空包；SVN提交模式已由commit_record差异校验覆盖，本规则仅限手动粘贴bytes list打包",
         "applies_to": "manual_bytes_list_only",
         "trigger_paths": ["*"],
