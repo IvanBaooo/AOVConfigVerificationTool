@@ -63,10 +63,30 @@ class LocalSettingsTests(unittest.TestCase):
 			# 空白的自定义名被过滤
 			self.assertEqual(loaded["rule_name_overrides"], {"hidden-item-tab": "隐藏道具检查"})
 
-	def test_missing_settings_file_returns_empty_settings(self) -> None:
+	def test_missing_settings_file_returns_builtin_defaults(self) -> None:
 		with tempfile.TemporaryDirectory() as temp_dir:
 			settings_path = Path(temp_dir) / "missing.json"
-			self.assertEqual(load_local_settings(settings_path), {})
+			loaded = load_local_settings(settings_path)
+			self.assertEqual(loaded["backend_url"], "https://aovpacker.run.ingarena.net")
+			self.assertEqual(loaded["ftp_profiles"]["TW"]["host"], "148.222.90.7")
+			self.assertEqual(loaded["ftp_profiles"]["TH"]["host"], "")
+
+	def test_user_settings_override_defaults_per_field(self) -> None:
+		with tempfile.TemporaryDirectory() as temp_dir:
+			settings_path = Path(temp_dir) / "settings.json"
+			save_local_settings(
+				{
+					"backend_url": "http://127.0.0.1:8780",
+					"ftp_profiles": {"TW": {"host": "10.0.0.1", "password": ""}},
+				},
+				settings_path,
+			)
+			loaded = load_local_settings(settings_path)
+			self.assertEqual(loaded["backend_url"], "http://127.0.0.1:8780")
+			self.assertEqual(loaded["ftp_profiles"]["TW"]["host"], "10.0.0.1")
+			# 用户留空的字段回落到默认值
+			self.assertEqual(loaded["ftp_profiles"]["TW"]["username"], "kgtwops")
+			self.assertEqual(loaded["ftp_profiles"]["TW"]["password"], "kgtwops")
 
 	def test_invalid_settings_document_raises_clear_error(self) -> None:
 		with tempfile.TemporaryDirectory() as temp_dir:
@@ -93,10 +113,11 @@ class LocalSettingsTests(unittest.TestCase):
 				encoding="utf-8",
 			)
 
-			self.assertEqual(
-				load_local_settings(settings_path),
-				{"local_root": r"G:\ServerBytes"},
-			)
+			loaded = load_local_settings(settings_path)
+			self.assertNotIn("package_region", loaded)
+			self.assertEqual(loaded["local_root"], r"G:\ServerBytes")
+			# 类型非法的布尔字段回落到默认值
+			self.assertTrue(loaded["enable_commit_check"])
 
 	def test_default_settings_live_next_to_project_entry(self) -> None:
 		with patch.dict(os.environ, {}, clear=True):

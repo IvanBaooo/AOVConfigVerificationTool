@@ -208,7 +208,7 @@ function applySettings(settings) {
   $("#svn-exe").value = settings.svn_exe || "svn";
   $("#svn-username").value = settings.svn_username || "";
   $("#use-auth-cache").checked = settings.use_auth_cache !== false;
-  $("#backend-url").value = settings.backend_url || "http://127.0.0.1:8780";
+  $("#backend-url").value = settings.backend_url || "https://aovpacker.run.ingarena.net";
   $("#backend-token").value = "";
   $("#backend-token").placeholder = settings.backend_token_configured ? "已配置，留空保持" : "输入 API Token";
   $("#package-version").value = settings.package_version || "";

@@ -58,6 +58,29 @@ FTP_PROFILE_STRING_FIELDS = (
 	"remote_directory",
 )
 
+# 内置默认配置：新机器/新用户开箱即用，用户保存的配置逐字段覆盖这里的值。
+# 注意：exe 与仓库对外可见，这里的 FTP 账号视为公共账号；各区域值待补充。
+DEFAULT_LOCAL_SETTINGS: dict[str, Any] = {
+	"svn_exe": "svn",
+	"use_auth_cache": True,
+	"enable_commit_check": True,
+	"enable_region_filter": True,
+	"backend_url": "https://aovpacker.run.ingarena.net",
+	"ftp_profiles": {
+		"TW": {
+			"host": "148.222.90.7",
+			"port": "21",
+			"username": "kgtwops",
+			"password": "kgtwops",
+			"remote_directory": "/",
+			"passive": True,
+		},
+		"TH": {},
+		"VN": {},
+		"ID": {},
+	},
+}
+
 
 def _sanitize_ftp_profiles(value: Any) -> dict[str, dict[str, str | bool]]:
 	if not isinstance(value, Mapping):
@@ -125,11 +148,35 @@ def _sanitize_settings(settings: Mapping[str, Any]) -> dict[str, Any]:
 	return sanitized
 
 
+def _merge_with_defaults(settings: dict[str, Any]) -> dict[str, Any]:
+	"""用户配置覆盖内置默认值；FTP 按区域逐字段合并（用户留空的字段用默认值）。"""
+	merged = {key: value for key, value in DEFAULT_LOCAL_SETTINGS.items() if key != "ftp_profiles"}
+	merged.update({key: value for key, value in settings.items() if key != "ftp_profiles"})
+	default_profiles = DEFAULT_LOCAL_SETTINGS["ftp_profiles"]
+	user_profiles = settings.get("ftp_profiles") or {}
+	profiles: dict[str, dict[str, str | bool]] = {}
+	for region in sorted(FTP_PROFILE_REGIONS):
+		default_profile = default_profiles.get(region, {})
+		user_profile = user_profiles.get(region, {})
+		profile: dict[str, str | bool] = {}
+		for field in FTP_PROFILE_STRING_FIELDS:
+			user_value = user_profile.get(field)
+			if isinstance(user_value, str) and user_value.strip():
+				profile[field] = user_value
+			else:
+				profile[field] = str(default_profile.get(field, ""))
+		user_passive = user_profile.get("passive")
+		profile["passive"] = user_passive if isinstance(user_passive, bool) else bool(default_profile.get("passive", True))
+		profiles[region] = profile
+	merged["ftp_profiles"] = profiles
+	return merged
+
+
 def load_local_settings(path: str | os.PathLike[str] | None = None) -> dict[str, Any]:
 	settings_path = Path(path) if path is not None else default_settings_path()
 	try:
 		if not settings_path.exists():
-			return {}
+			return _merge_with_defaults({})
 		document = json.loads(settings_path.read_text(encoding="utf-8"))
 	except (OSError, UnicodeError, json.JSONDecodeError) as error:
 		raise LocalSettingsError(f"Cannot read local settings: {settings_path}: {error}") from error
@@ -144,7 +191,7 @@ def load_local_settings(path: str | os.PathLike[str] | None = None) -> dict[str,
 	settings = document.get("settings")
 	if not isinstance(settings, dict):
 		raise LocalSettingsError(f"Local settings field must be an object: {settings_path}")
-	return _sanitize_settings(settings)
+	return _merge_with_defaults(_sanitize_settings(settings))
 
 
 def save_local_settings(

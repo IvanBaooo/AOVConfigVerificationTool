@@ -301,7 +301,12 @@ def _module_detail_lists(module_analysis: object) -> tuple[list[dict[str, object
 class ElectronBridgeService:
 	def __init__(self, project_root: str | Path | None = None) -> None:
 		self.project_root = Path(project_root or Path(__file__).resolve().parent)
-		self.settings_path = self.project_root / "settings.json"
+		settings_override = os.environ.get("AOV_AUTOPACKER_SETTINGS", "").strip()
+		self.settings_path = (
+			Path(settings_override).expanduser()
+			if settings_override
+			else self.project_root / "settings.json"
+		)
 		self.output_parent = self.project_root / "output"
 		self.last_pack_result = None
 		self.queue = PublicationQueue(self.project_root / "publication_queue.sqlite3")
