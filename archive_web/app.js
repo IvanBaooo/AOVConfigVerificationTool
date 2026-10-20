@@ -251,21 +251,31 @@ function setLoginError(message = "") {
 function showLoginView() {
   elements.loginView.classList.remove("hidden");
   setLoginError("");
+  const clientId = String(state.googleClientId || "");
+  if (!clientId || clientId.includes("placeholder")) {
+    setLoginError("后端尚未配置 Google Client ID，请完成部署配置后刷新页面。");
+    return;
+  }
   if (typeof google === "undefined" || !google.accounts?.id) {
     setLoginError("Google 登录组件加载失败，请检查网络后刷新页面。");
     return;
   }
   google.accounts.id.initialize({
-    client_id: state.googleClientId,
+    client_id: clientId,
     callback: handleGoogleCredential,
+    error_callback: () => {
+      elements.googleLoginButton.replaceChildren();
+      setLoginError("Google 登录初始化失败，请确认 Client ID 与授权来源（JavaScript origins）配置一致后刷新。");
+    },
   });
   elements.googleLoginButton.replaceChildren();
   google.accounts.id.renderButton(elements.googleLoginButton, {
     theme: "outline",
-    size: "large",
+    size: "medium",
+    shape: "rectangular",
     text: "signin_with",
     locale: "zh-CN",
-    width: 280,
+    width: 220,
   });
 }
 
