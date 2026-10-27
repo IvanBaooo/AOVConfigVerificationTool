@@ -250,6 +250,19 @@ def describe_fixed_path(fixed_path: str) -> Dict[str, str]:
 	return describe_svn_path(fixed_path)
 
 
+def artifact_type_for_path(fixed_path: str) -> str:
+	normalized = fixed_path.replace("\\", "/").casefold()
+	if "/databin/client/" in normalized:
+		return "client_bytes"
+	if "/databin/server/" in normalized:
+		return "server_bytes"
+	return "other"
+
+
+def _warning_group_path(fixed_path: str) -> str:
+	return re.sub(r"\.(?:xml|bytes)$", "", fixed_path, flags=re.IGNORECASE)
+
+
 def _add_path_warning(
 	groups: Dict[Tuple[str, str], Dict[str, object]],
 	*,
@@ -260,7 +273,7 @@ def _add_path_warning(
 	input_method: str,
 	path_mappings: Sequence[Mapping[str, object]] = (),
 ) -> None:
-	key = (warning_type, changed_path.fixed_path)
+	key = (warning_type, _warning_group_path(changed_path.fixed_path))
 	description = describe_svn_path(changed_path.fixed_path, path_mappings)
 	if key not in groups:
 		groups[key] = {
@@ -274,11 +287,23 @@ def _add_path_warning(
 			"directory": description["directory"],
 			"file_name": description["file_name"],
 			"fixed_path": changed_path.fixed_path,
+			"artifact_type": artifact_type_for_path(changed_path.fixed_path),
+			"related_paths": [],
 			"revisions": [],
 			"actions": [],
 			"message": f"{message_prefix}: {description['readable_name']} ({changed_path.fixed_path})",
 		}
 	group = groups[key]
+	related_paths = group["related_paths"]
+	if isinstance(related_paths, list) and changed_path.fixed_path not in related_paths:
+		related_paths.append(changed_path.fixed_path)
+	if changed_path.fixed_path.lower().endswith(".xml") and not str(group["fixed_path"]).lower().endswith(".xml"):
+		group.update({
+			"readable_name": description["readable_name"],
+			"file_name": description["file_name"],
+			"fixed_path": changed_path.fixed_path,
+			"message": f"{message_prefix}: {description['readable_name']} ({changed_path.fixed_path})",
+		})
 	revisions = group["revisions"]
 	actions = group["actions"]
 	if isinstance(revisions, list) and revision not in revisions:
@@ -417,6 +442,7 @@ def run_commit_record_check(
 				detail_files[changed_path.fixed_path] = {
 					"fixed_path": changed_path.fixed_path,
 					"action": changed_path.action,
+					"artifact_type": artifact_type_for_path(changed_path.fixed_path),
 					"readable_name": description["readable_name"],
 				}
 		if detail_files:
@@ -456,6 +482,8 @@ def run_commit_record_check(
 			warning["revisions"] = sorted(warning["revisions"])  # type: ignore[index]
 		if isinstance(warning.get("actions"), list):
 			warning["actions"] = sorted(warning["actions"])  # type: ignore[index]
+		if isinstance(warning.get("related_paths"), list):
+			warning["related_paths"] = sorted(warning["related_paths"])  # type: ignore[index]
 
 	if unresolved_gap_revisions:
 		warnings.append({

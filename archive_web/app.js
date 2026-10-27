@@ -894,13 +894,25 @@ async function loadArchives() {
   }
 }
 
+function artifactTypeLabel(value) {
+  return ({ server_bytes: "服务器 bytes", client_bytes: "客户端 bytes" })[value] || "其他文件";
+}
+
 function describeWarnings(warnings) {
   if (!Array.isArray(warnings) || warnings.length === 0) return "";
-  return `<ul class="warning-list">${warnings.map((warning) => {
-    if (typeof warning === "string") return `<li>${escapeHtml(warning)}</li>`;
-    const text = warning?.message || warning?.path || warning?.reason || JSON.stringify(warning);
-    return `<li>${escapeHtml(text)}</li>`;
-  }).join("")}</ul>`;
+  return ["server_bytes", "client_bytes", "other"].map((type) => {
+    const grouped = warnings.filter((warning) => (warning?.artifact_type || "other") === type);
+    if (!grouped.length) return "";
+    const items = grouped.map((warning) => {
+      if (typeof warning === "string") return `<li>${escapeHtml(warning)}</li>`;
+      const text = warning?.message || warning?.path || warning?.reason || JSON.stringify(warning);
+      return `<li>${escapeHtml(text)}</li>`;
+    }).join("");
+    return `<div class="commit-warning-group">
+      <p class="check-card-note">${artifactTypeLabel(type)}（${grouped.length} 条告警）</p>
+      <ul class="warning-list">${items}</ul>
+    </div>`;
+  }).join("");
 }
 
 function keyValue(label, value, code = false) {
@@ -975,6 +987,7 @@ function renderCommitRevisionDetails(commit) {
       <code>${escapeHtml(file?.action || "--")}</code>
       <span class="package-cell">${escapeHtml(file?.fixed_path || "--")}</span>
       ${file?.readable_name ? `<span class="revision-detail-name">${escapeHtml(file.readable_name)}</span>` : ""}
+      <span class="badge">${escapeHtml(artifactTypeLabel(file?.artifact_type))}</span>
       ${file?.high_risk ? `<span class="badge badge-warning">高危</span>` : ""}
     </li>`).join("");
     return `<li class="revision-detail">

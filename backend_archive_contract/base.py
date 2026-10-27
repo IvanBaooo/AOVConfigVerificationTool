@@ -235,6 +235,7 @@ def _copy_commit_warning(value: object) -> dict[str, object]:
 		"directory",
 		"file_name",
 		"fixed_path",
+		"artifact_type",
 	):
 		text = _optional_text(warning, key)
 		if text:
@@ -286,6 +287,9 @@ def _copy_revision_details(value: object) -> list[dict[str, object]]:
 			readable_name = _optional_text(file_info, "readable_name")
 			if readable_name:
 				item["readable_name"] = readable_name
+			artifact_type = _optional_text(file_info, "artifact_type")
+			if artifact_type:
+				item["artifact_type"] = artifact_type
 			if file_info.get("high_risk") is True:
 				item["high_risk"] = True
 				high_risk_pattern = _optional_text(file_info, "high_risk_pattern")

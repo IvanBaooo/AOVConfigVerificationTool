@@ -78,6 +78,26 @@ class ExpiryCrossCheckTests(unittest.TestCase):
         self.assertEqual("confirm", result["status"])
         self.assertEqual("expiry_activity_unknown", result["items"][0]["type"])
 
+    def test_ignored_item_types_skip_expiry_validation(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tdr_root = Path(tmp)
+            write_item_dtxml(tdr_root, [
+                {"ID": "30007", "名称": "快捷消息", "类型": "快捷消息", "限时道具有效期": "720"},
+            ])
+            check = dict(default_incident_content_checks()[1])
+            check["params"] = {"ignored_item_types": ["快捷消息"]}
+            result = run_expiry_cross_check(
+                fixed_paths=ITEM_TOUCH_PATHS,
+                local_root=str(tdr_root / "ServerBytes"),
+                validation_config=make_config(tdr_root),
+                check=check,
+                changeset_changes=make_changeset("30007"),
+            )
+        self.assertEqual("passed", result["status"])
+        self.assertEqual(0, result["checked_count"])
+        self.assertEqual(1, result["ignored_item_type_count"])
+        self.assertEqual([], result["items"])
+
     def test_changeset_deleted_rows_are_skipped_and_pass(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tdr_root = Path(tmp)

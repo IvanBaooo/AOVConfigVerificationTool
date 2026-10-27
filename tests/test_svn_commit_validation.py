@@ -68,11 +68,13 @@ class RevisionDetailsTests(unittest.TestCase):
 				{
 					"fixed_path": "/Taiwan/Databin/Server/Shop/SvrHeroSkinShop.xml",
 					"action": "M",
+					"artifact_type": "server_bytes",
 					"readable_name": "英雄皮肤促销表 / SvrHeroSkinShop.xml",
 				},
 				{
 					"fixed_path": "/Taiwan/Databin/Server/Shop/SvrMysterySale.xml",
 					"action": "A",
+					"artifact_type": "server_bytes",
 					"readable_name": "SvrMysterySale / SvrMysterySale.xml",
 				},
 			],
@@ -85,6 +87,46 @@ class RevisionDetailsTests(unittest.TestCase):
 		self.assertEqual(1, len(second["files"]))
 		self.assertEqual("D", second["files"][0]["action"])
 		self.assertEqual("/Taiwan/Databin/Server/Shop/Old.xml", second["files"][0]["fixed_path"])
+
+	def test_xml_and_bytes_pair_produces_one_warning(self) -> None:
+		svn_log = """\
+r101 | alice | 2026-08-01 09:00:00 +0800 |
+Changed paths:
+   M /repo/ServerBytes/Taiwan/Databin/Server/Shop/SvrHeroSkinShop.bytes
+   M /repo/ServerBytes/Taiwan/Databin/Server/Shop/SvrHeroSkinShop.xml
+
+配对文件改动
+
+r102 | bob | 2026-08-01 12:00:00 +0800 |
+Changed paths:
+   M /repo/ServerBytes/Taiwan/Databin/Server/Shop/Current.xml
+
+本次打包提交
+"""
+		config = _commit_config(svn_log)
+		commit = dict(config["commit_record"])
+		commit["current_revision_spec"] = "r102"
+		config["commit_record"] = commit
+
+		result = run_commit_record_check(
+			fixed_paths=["/Taiwan/Databin/Server/Shop/Current.xml"],
+			validation_config=config,
+		)
+
+		self.assertEqual(1, result["warning_count"])
+		warning = result["warnings"][0]
+		self.assertEqual("/Taiwan/Databin/Server/Shop/SvrHeroSkinShop.xml", warning["fixed_path"])
+		self.assertEqual(
+			[
+				"/Taiwan/Databin/Server/Shop/SvrHeroSkinShop.bytes",
+				"/Taiwan/Databin/Server/Shop/SvrHeroSkinShop.xml",
+			],
+			warning["related_paths"],
+		)
+		self.assertEqual([101], warning["revisions"])
+		self.assertEqual("server_bytes", warning["artifact_type"])
+		from svn_commit_validation import artifact_type_for_path
+		self.assertEqual("client_bytes", artifact_type_for_path("/Taiwan/Databin/Client/Item/Item.bytes"))
 
 	def test_unresolved_gap_revisions_are_excluded_from_revision_details(self) -> None:
 		partial_log = """\
@@ -172,6 +214,7 @@ Changed paths:
 					{
 						"fixed_path": "/Taiwan/Databin/Server/Shop/SvrHeroSkinShop.xml",
 						"action": "M",
+						"artifact_type": "server_bytes",
 						"readable_name": "英雄皮肤促销表 / SvrHeroSkinShop.xml",
 					}
 				],
@@ -190,6 +233,7 @@ Changed paths:
 				{
 					"fixed_path": "/Taiwan/Databin/Server/Shop/SvrHeroSkinShop.xml",
 					"action": "M",
+					"artifact_type": "server_bytes",
 					"readable_name": "英雄皮肤促销表 / SvrHeroSkinShop.xml",
 				}
 			],

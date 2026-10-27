@@ -85,6 +85,9 @@ _RULE_SPECS: List[Dict[str, object]] = [
             "/Databin/Server/Shop/",
             "/Databin/Server/Ilua/",
         ],
+        "params": {
+            "ignored_item_types": ["满减抵价券", "快捷消息", "礼包道具", "VALORPASS积分卡"],
+        },
         "detail_columns": [
             {"key": "item_id", "label": "道具 ID"},
             {"key": "name", "label": "名称"},

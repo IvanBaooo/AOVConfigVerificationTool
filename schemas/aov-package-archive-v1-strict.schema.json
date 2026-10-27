@@ -206,6 +206,7 @@
         "message": { "type": "string" },
         "high_risk": { "type": "boolean" },
         "high_risk_pattern": { "type": "string" },
+        "artifact_type": { "type": "string", "enum": ["client_bytes", "server_bytes", "other"] },
         "revisions": { "$ref": "#/$defs/revisions" },
         "actions": { "type": "array", "items": { "type": "string", "minLength": 1 } },
         "last_external_revision": { "type": "integer", "minimum": 1 },
@@ -274,7 +275,8 @@
               "action": { "type": "string", "minLength": 1 },
               "readable_name": { "type": "string" },
               "high_risk": { "type": "boolean" },
-              "high_risk_pattern": { "type": "string" }
+              "high_risk_pattern": { "type": "string" },
+        "artifact_type": { "type": "string", "enum": ["client_bytes", "server_bytes", "other"] }
             }
           }
         }

@@ -9,7 +9,7 @@ from rules.registry import default_incident_content_checks
 FIXTURE_PATH = Path(__file__).resolve().parent / "fixtures" / "incident_derived_rules.json"
 
 ITEM_COLUMNS = [
-    "ID", "名称", "是否是隐藏道具", "活动ID", "限时道具有效期", "可使用结束日期",
+    "ID", "名称", "类型", "是否是隐藏道具", "活动ID", "限时道具有效期", "可使用结束日期",
 ]
 
 ITEM_TOUCH_PATHS = ["Taiwan/Databin/Server/Item/SvrItem.bytes"]

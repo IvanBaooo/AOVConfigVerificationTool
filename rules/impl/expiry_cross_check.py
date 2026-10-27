@@ -168,10 +168,19 @@ def run_expiry_cross_check(
 
     params = check.get("params")
     expiry_column = ITEM_EXPIRY_COLUMN
-    if isinstance(params, dict) and isinstance(params.get("expiry_column"), str) and params["expiry_column"].strip():
-        configured = str(params["expiry_column"]).strip()
-        # 规格里的 expire_time 是逻辑字段名；真实表列名以道具表为准。
-        expiry_column = configured if configured in (base.get("columns") or []) else ITEM_EXPIRY_COLUMN
+    ignored_item_types: set[str] = set()
+    if isinstance(params, dict):
+        if isinstance(params.get("expiry_column"), str) and params["expiry_column"].strip():
+            configured = str(params["expiry_column"]).strip()
+            # 规格里的 expire_time 是逻辑字段名；真实表列名以道具表为准。
+            expiry_column = configured if configured in (base.get("columns") or []) else ITEM_EXPIRY_COLUMN
+        ignored_values = params.get("ignored_item_types")
+        if isinstance(ignored_values, list):
+            ignored_item_types = {
+                str(value).strip().casefold()
+                for value in ignored_values
+                if str(value).strip()
+            }
 
     windows = _activity_windows(validation_config)
     rows = base["rows"]
@@ -199,9 +208,13 @@ def run_expiry_cross_check(
     confirms: List[Dict[str, object]] = []
     passed_items: List[Dict[str, object]] = []
     checked_count = 0
+    ignored_item_type_count = 0
 
     for row in rows:
         if not isinstance(row, dict):
+            continue
+        if str(row.get("类型", "")).strip().casefold() in ignored_item_types:
+            ignored_item_type_count += 1
             continue
         column, raw_expiry = _expiry_value(row, expiry_column)
         if _is_empty_value(raw_expiry):
@@ -358,6 +371,7 @@ def run_expiry_cross_check(
         "rule_id": check.get("id", "expiry-activity-cross-check"),
         "expiry_column": expiry_column,
         "checked_count": checked_count,
+        "ignored_item_type_count": ignored_item_type_count,
         "scope": base.get("scope", "changeset"),
         "scope_ids": sorted(scope_ids) if scope_ids else [],
         "activity_resolution": activity_resolution,
